@@ -10,7 +10,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 // Environment variables (set in GitHub Secrets)
 const SUPABASE_URL = process.env.SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 const APP_BASE_URL = process.env.APP_BASE_URL || 'https://your-app-url.com';
 
@@ -27,8 +27,8 @@ const CSM_SLACK_IDS = {
 
 async function main() {
   // Validate environment variables
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    console.error('Missing Supabase credentials. Set SUPABASE_URL and SUPABASE_ANON_KEY.');
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+    console.error('Missing Supabase credentials. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY.');
     process.exit(1);
   }
 
@@ -37,8 +37,8 @@ async function main() {
     process.exit(1);
   }
 
-  // Initialize Supabase client
-  const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  // Initialize Supabase client with service role key (bypasses RLS)
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
   console.log('Fetching customers from Supabase...');
 

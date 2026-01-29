@@ -26,7 +26,7 @@ jobs:
       - name: Send Slack survey reminders
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
         run: node scripts/send-survey-reminders.js
