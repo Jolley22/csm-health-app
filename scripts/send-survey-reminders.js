@@ -12,7 +12,8 @@ const { createClient } = require('@supabase/supabase-js');
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
-const APP_BASE_URL = process.env.APP_BASE_URL || 'https://your-app-url.com';
+// Trim any whitespace from the URL to avoid encoding issues
+const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://your-app-url.com').trim();
 
 // CSM list - should match your app's CSM list
 const CSMS = ['Brooke', 'Natalie', 'Ryan', 'Jasmin', 'Jake', 'Jessica', 'Cody', 'Emmalyn'];
