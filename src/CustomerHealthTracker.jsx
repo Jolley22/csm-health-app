@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Plus, TrendingUp, TrendingDown, AlertCircle, Search, X, Settings, ChevronDown, Send, ExternalLink, Copy, Check, CheckCircle, ArrowLeft, Save, History, LogOut, Upload } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, AlertCircle, Search, X, Settings, Send, ExternalLink, Copy, Check, CheckCircle, Save, History, LogOut, Upload } from 'lucide-react';
 import CSVImport from './CSVImport';
 
 const CustomerHealthTracker = ({ session, onSignOut }) => {
@@ -344,42 +344,6 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
     }));
   };
 
-  const handleSurveyNotesChange = (customerId, notes) => {
-    setSurveyResponses(prev => ({
-      ...prev,
-      [customerId]: {
-        ...prev[customerId],
-        notes
-      }
-    }));
-  };
-
-  const goToNextCustomer = () => {
-    const surveyCustomers = getSurveyCustomers();
-    if (currentCustomerIndex < surveyCustomers.length - 1) {
-      setCurrentCustomerIndex(currentCustomerIndex + 1);
-    }
-  };
-
-  const goToPreviousCustomer = () => {
-    if (currentCustomerIndex > 0) {
-      setCurrentCustomerIndex(currentCustomerIndex - 1);
-    }
-  };
-
-  const isCurrentCustomerComplete = () => {
-    const surveyCustomers = getSurveyCustomers();
-    const currentCustomer = surveyCustomers[currentCustomerIndex];
-    if (!currentCustomer) return false;
-
-    const responses = surveyResponses[currentCustomer.id];
-    if (!responses) return false;
-
-    // Check all required metrics
-    const requiredMetrics = Object.keys(metricLabels).filter(m => !optionalMetrics.includes(m));
-    return requiredMetrics.every(metric => responses[metric] && responses[metric] !== '');
-  };
-
   const submitSurvey = async () => {
     try {
       // Update all customers in the survey
@@ -450,7 +414,6 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
   if (surveyMode) {
     const surveyCustomers = getSurveyCustomers();
     const currentCustomer = surveyCustomers[currentCustomerIndex];
-    const progress = ((currentCustomerIndex + 1) / surveyCustomers.length) * 100;
     const completedCount = surveyCustomers.filter(c => {
       const responses = surveyResponses[c.id];
       if (!responses) return false;
