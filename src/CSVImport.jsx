@@ -18,7 +18,6 @@ const CSVImport = ({ userId, onImportComplete }) => {
     
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
-      const nextChar = text[i + 1];
       
       if (char === '"') {
         inQuotes = !inQuotes;

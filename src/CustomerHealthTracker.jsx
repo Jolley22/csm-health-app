@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Plus, TrendingUp, TrendingDown, AlertCircle, Search, X, Settings, ChevronDown, ChevronUp, Send, ExternalLink, Copy, Check, CheckCircle, ArrowLeft, Save, History, LogOut, Upload } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, AlertCircle, Search, X, Settings, ChevronDown, Send, ExternalLink, Copy, Check, CheckCircle, ArrowLeft, Save, History, LogOut, Upload } from 'lucide-react';
 import CSVImport from './CSVImport';
 
 const CustomerHealthTracker = ({ session, onSignOut }) => {
@@ -12,7 +12,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
   const [filterActive, setFilterActive] = useState('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState(null);
-  const [expandedMetrics, setExpandedMetrics] = useState({});
+  const [, setExpandedMetrics] = useState({});
   const [showSurveyModal, setShowSurveyModal] = useState(false);
   const [surveyLinks, setSurveyLinks] = useState({});
   const [copiedLink, setCopiedLink] = useState(null);
@@ -227,6 +227,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
         setSurveyMode(true);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   useEffect(() => {
@@ -785,6 +786,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const toggleMetricsExpand = (customerId) => {
     setExpandedMetrics(prev => ({ ...prev, [customerId]: !prev[customerId] }));
   };
@@ -1139,7 +1141,6 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
                 {filteredCustomers.map(customer => {
                   const { score, label } = calculateWeightedRiskScore(customer);
                   const status = getHealthStatus(label);
-                  const StatusIcon = status.icon;
 
                   return (
                     <tr key={customer.id} className="hover:bg-gray-50">
