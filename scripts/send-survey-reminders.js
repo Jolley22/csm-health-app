@@ -118,17 +118,7 @@ async function main() {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `${link.slackMention} - ${link.customerCount} customer${link.customerCount !== 1 ? 's' : ''}`
-        },
-        accessory: {
-          type: 'button',
-          text: {
-            type: 'plain_text',
-            text: 'Start Survey',
-            emoji: true
-          },
-          url: link.url,
-          action_id: `survey-${link.csm}`
+          text: `${link.slackMention} - ${link.customerCount} customer${link.customerCount !== 1 ? 's' : ''}\n<${link.url}|Start Survey>`
         }
       })),
       {
@@ -139,7 +129,7 @@ async function main() {
         elements: [
           {
             type: 'mrkdwn',
-            text: 'Survey links are personalized for each CSM. Click your button above to begin.'
+            text: 'Survey links are personalized for each CSM. Click your link above to begin.'
           }
         ]
       }
