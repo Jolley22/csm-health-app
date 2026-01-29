@@ -94,53 +94,14 @@ async function main() {
   // Build Slack message
   const currentMonth = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
-  // Build the CSM list with proper Slack link formatting
-  // Using <URL|text> syntax to ensure the full URL is clickable
+  // Build the CSM list with Slack link formatting
   const csmList = surveyLinks.map(link =>
-    `• ${link.slackMention} (${link.customerCount} customer${link.customerCount !== 1 ? 's' : '}'}): <${link.url}|Click here to start survey>`
+    `• *${link.csm}* (${link.customerCount} customer${link.customerCount !== 1 ? 's' : ''}): <${link.url}|Start Survey>`
   ).join('\n');
 
+  // Use simple text format - Slack handles links better this way
   const slackMessage = {
-    text: `Customer Health Survey - ${currentMonth}`,
-    blocks: [
-      {
-        type: 'header',
-        text: {
-          type: 'plain_text',
-          text: `Customer Health Survey - ${currentMonth}`,
-          emoji: true
-        }
-      },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: `Hey team! It's time for the monthly Customer Health Score survey. Please complete your survey by the end of the week.`
-        }
-      },
-      {
-        type: 'divider'
-      },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: csmList
-        }
-      },
-      {
-        type: 'divider'
-      },
-      {
-        type: 'context',
-        elements: [
-          {
-            type: 'mrkdwn',
-            text: 'Click your personalized link above to begin the survey.'
-          }
-        ]
-      }
-    ]
+    text: `*Customer Health Survey - ${currentMonth}*\n\nHey team! It's time for the monthly Customer Health Score survey. Please complete your survey by the end of the week.\n\n${csmList}\n\n_Click your personalized link above to begin the survey._`
   };
 
   // Send to Slack
