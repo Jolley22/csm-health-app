@@ -94,14 +94,17 @@ async function main() {
   // Build Slack message
   const currentMonth = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
-  // Build the CSM list with Slack link formatting
-  const csmList = surveyLinks.map(link =>
-    `• *${link.csm}* (${link.customerCount} customer${link.customerCount !== 1 ? 's' : ''}): <${link.url}|Start Survey>`
-  ).join('\n');
+  // Use attachments format - each CSM gets their own attachment with a clickable link
+  const attachments = surveyLinks.map(link => ({
+    color: '#2563eb',
+    title: `${link.csm} - ${link.customerCount} customer${link.customerCount !== 1 ? 's' : ''}`,
+    title_link: link.url,
+    text: 'Click the title above to start your survey'
+  }));
 
-  // Use simple text format - Slack handles links better this way
   const slackMessage = {
-    text: `*Customer Health Survey - ${currentMonth}*\n\nHey team! It's time for the monthly Customer Health Score survey. Please complete your survey by the end of the week.\n\n${csmList}\n\n_Click your personalized link above to begin the survey._`
+    text: `*Customer Health Survey - ${currentMonth}*\n\nHey team! It's time for the monthly Customer Health Score survey. Please complete your survey by the end of the week.`,
+    attachments: attachments
   };
 
   // Send to Slack
