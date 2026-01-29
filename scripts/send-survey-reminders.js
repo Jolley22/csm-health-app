@@ -72,8 +72,8 @@ async function main() {
     const csmCustomers = customersByCSM[csm] || [];
     if (csmCustomers.length === 0) continue;
 
-    const customerIds = csmCustomers.map(c => c.id).join(',');
-    const surveyUrl = `${APP_BASE_URL}#survey?csm=${encodeURIComponent(csm)}&customers=${customerIds}`;
+    // Use query params instead of hash - Slack handles these better
+    const surveyUrl = `${APP_BASE_URL}?survey&csm=${encodeURIComponent(csm)}`;
 
     // Check if we have a Slack ID for @mention
     const slackMention = CSM_SLACK_IDS[csm] ? `<@${CSM_SLACK_IDS[csm]}>` : `*${csm}*`;
