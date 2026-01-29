@@ -94,7 +94,13 @@ async function main() {
   // Build Slack message
   const currentMonth = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
+  // Build the CSM list as simple text
+  const csmList = surveyLinks.map(link =>
+    `• ${link.slackMention} (${link.customerCount} customer${link.customerCount !== 1 ? 's' : ''}): ${link.url}`
+  ).join('\n');
+
   const slackMessage = {
+    text: `Customer Health Survey - ${currentMonth}`,
     blocks: [
       {
         type: 'header',
@@ -114,13 +120,13 @@ async function main() {
       {
         type: 'divider'
       },
-      ...surveyLinks.map(link => ({
+      {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `${link.slackMention} - ${link.customerCount} customer${link.customerCount !== 1 ? 's' : ''}\n<${link.url}|Start Survey>`
+          text: csmList
         }
-      })),
+      },
       {
         type: 'divider'
       },
@@ -129,7 +135,7 @@ async function main() {
         elements: [
           {
             type: 'mrkdwn',
-            text: 'Survey links are personalized for each CSM. Click your link above to begin.'
+            text: 'Click your personalized link above to begin the survey.'
           }
         ]
       }
