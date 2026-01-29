@@ -94,9 +94,10 @@ async function main() {
   // Build Slack message
   const currentMonth = new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' });
 
-  // Build the CSM list as simple text
+  // Build the CSM list with proper Slack link formatting
+  // Using <URL|text> syntax to ensure the full URL is clickable
   const csmList = surveyLinks.map(link =>
-    `• ${link.slackMention} (${link.customerCount} customer${link.customerCount !== 1 ? 's' : ''}): ${link.url}`
+    `• ${link.slackMention} (${link.customerCount} customer${link.customerCount !== 1 ? 's' : '}'}): <${link.url}|Click here to start survey>`
   ).join('\n');
 
   const slackMessage = {
