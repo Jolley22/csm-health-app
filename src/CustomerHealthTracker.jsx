@@ -289,46 +289,6 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
     }));
   };
 
-  // eslint-disable-next-line no-unused-vars
-  const handleSurveyNotesChange = (customerId, notes) => {
-    setSurveyResponses(prev => ({
-      ...prev,
-      [customerId]: {
-        ...prev[customerId],
-        notes
-      }
-    }));
-  };
-
-  // eslint-disable-next-line no-unused-vars
-  const goToNextCustomer = () => {
-    const surveyCustomers = getSurveyCustomers();
-    if (currentCustomerIndex < surveyCustomers.length - 1) {
-      setCurrentCustomerIndex(currentCustomerIndex + 1);
-    }
-  };
-
-  // eslint-disable-next-line no-unused-vars
-  const goToPreviousCustomer = () => {
-    if (currentCustomerIndex > 0) {
-      setCurrentCustomerIndex(currentCustomerIndex - 1);
-    }
-  };
-
-  // eslint-disable-next-line no-unused-vars
-  const isCurrentCustomerComplete = () => {
-    const surveyCustomers = getSurveyCustomers();
-    const currentCustomer = surveyCustomers[currentCustomerIndex];
-    if (!currentCustomer) return false;
-
-    const responses = surveyResponses[currentCustomer.id];
-    if (!responses) return false;
-
-    // Check all required metrics
-    const requiredMetrics = Object.keys(metricLabels).filter(m => !optionalMetrics.includes(m));
-    return requiredMetrics.every(metric => responses[metric] && responses[metric] !== '');
-  };
-
   const submitSurvey = async () => {
     try {
       // Update all customers in the survey
@@ -401,8 +361,6 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
   if (surveyMode) {
     const surveyCustomers = getSurveyCustomers();
     const currentCustomer = surveyCustomers[currentCustomerIndex];
-    // eslint-disable-next-line no-unused-vars
-    const progress = ((currentCustomerIndex + 1) / surveyCustomers.length) * 100;
     const completedCount = surveyCustomers.filter(c => {
       const responses = surveyResponses[c.id];
       if (!responses) return false;
