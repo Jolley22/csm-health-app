@@ -9,7 +9,9 @@ function App() {
 
   useEffect(() => {
     // Check if user is already logged in
+    const sessionTimeout = setTimeout(() => setLoading(false), 5000);
     supabase.auth.getSession().then(({ data: { session } }) => {
+      clearTimeout(sessionTimeout);
       setSession(session);
       setLoading(false);
     });
