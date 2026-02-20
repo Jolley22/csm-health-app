@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Plus, TrendingUp, TrendingDown, AlertCircle, Search, X, Settings, ChevronDown, Send, ExternalLink, Copy, Check, CheckCircle, ArrowLeft, Save, History, LogOut, Upload } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, AlertCircle, Search, X, Settings, ChevronDown, Send, ExternalLink, Copy, Check, CheckCircle, ArrowLeft, Save, History, LogOut, Upload, BarChart2 } from 'lucide-react';
 import CSVImport from './CSVImport';
+import Dashboard from './Dashboard';
+import { optionalMetrics, calculateWeightedRiskScore } from './scoring';
 
 const CustomerHealthTracker = ({ session, onSignOut }) => {
   const [customers, setCustomers] = useState([]);
@@ -20,6 +22,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
   const [selectedCustomerHistory, setSelectedCustomerHistory] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
+  const [activeTab, setActiveTab] = useState('customers');
 
   // Survey mode state
   const [surveyMode, setSurveyMode] = useState(false);
@@ -27,27 +30,6 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
   const [surveyResponses, setSurveyResponses] = useState({});
   const [currentCustomerIndex, setCurrentCustomerIndex] = useState(0);
   const [surveyComplete, setSurveyComplete] = useState(false);
-
-  // Scoring configuration
-  const scoringConfig = {
-    base: 165,
-    penaltyMultiplier: 5,
-    thresholds: { high: 130, low: 60 },
-    metricPoints: { high: 5, medium: 3, low: 1 },
-    metricWeights: {
-      toolsDeployed: 1,
-      interactionChampion: 3,
-      interactionDecisionMaker: 4,
-      daysActive: 3,
-      roiEstablished: 5,
-      championNPS: 5,
-      endUserNPS: 2,
-      supportSurvey: 1,
-      sentiment: 4,
-      leadership: 5,
-      applicantCES: 1
-    }
-  };
 
   const segments = ['1', '2', '3', '4'];
   const csms = ['Brooke', 'Natalie', 'Ryan', 'Jasmin', 'Jake', 'Jessica', 'Cody', 'Emmalyn'];
@@ -144,8 +126,6 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
       low: 'Average score is > 5.75'
     }
   };
-
-  const optionalMetrics = ['championNPS', 'endUserNPS', 'supportSurvey', 'applicantCES'];
 
   // Load customers from Supabase
   const loadCustomers = async () => {
@@ -263,52 +243,6 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
       setSurveyResponses(responses);
     }
   }, [surveyMode, customers, surveyCSM]);
-
-  const calculateRawScore = (customer) => {
-    const { metricPoints, metricWeights } = scoringConfig;
-    let totalScore = 0;
-    let hasMissingRequired = false;
-
-    Object.keys(metricWeights).forEach(metric => {
-      const value = customer[metric];
-      const weight = metricWeights[metric];
-      const isOptional = optionalMetrics.includes(metric);
-
-      if (!value || value === '') {
-        if (!isOptional) hasMissingRequired = true;
-      } else {
-        const points = metricPoints[value.toLowerCase()] || 0;
-        totalScore += points * weight;
-      }
-    });
-
-    return hasMissingRequired ? null : totalScore;
-  };
-
-  const calculateWeightedRiskScore = (customer) => {
-    const rawScore = calculateRawScore(customer);
-    if (rawScore === null) return { score: null, label: 'Incomplete' };
-
-    const { base, penaltyMultiplier, metricWeights } = scoringConfig;
-    let penalties = 0;
-
-    optionalMetrics.forEach(metric => {
-      if (!customer[metric] || customer[metric] === '') {
-        penalties += metricWeights[metric] * penaltyMultiplier;
-      }
-    });
-
-    const weightedScore = (base / (base - penalties)) * rawScore;
-    return { score: Math.round(weightedScore), label: getHealthLabel(weightedScore) };
-  };
-
-  const getHealthLabel = (score) => {
-    if (score === null) return 'Incomplete';
-    const { thresholds } = scoringConfig;
-    if (score > thresholds.high) return 'High';
-    if (score > thresholds.low) return 'Medium';
-    return 'Low';
-  };
 
   const getHealthStatus = (label) => {
     if (label === 'Incomplete') return { label: 'Incomplete', color: 'bg-gray-100 text-gray-700', dotColor: 'bg-gray-400', icon: AlertCircle };
@@ -856,8 +790,31 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
           </div>
         </div>
 
-        {/* Keep all the modals and rest of the dashboard UI exactly the same... */}
-        {/* (I'll include just the key parts, the modals stay the same) */}
+        {/* Tab Navigation */}
+        <div className="flex gap-1 mb-6 bg-white rounded-lg shadow p-1 w-fit">
+          <button
+            onClick={() => setActiveTab('customers')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'customers'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            <Settings className="w-4 h-4" />
+            Customers
+          </button>
+          <button
+            onClick={() => setActiveTab('dashboard')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'dashboard'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            <BarChart2 className="w-4 h-4" />
+            Dashboard
+          </button>
+        </div>
 
         {showSurveyModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -1014,6 +971,11 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
           </div>
         )}
 
+        {activeTab === 'dashboard' && (
+          <Dashboard customers={customers} />
+        )}
+
+        {activeTab === 'customers' && <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow p-5">
             <div className="text-sm text-gray-600 mb-1">Total Customers</div>
@@ -1245,6 +1207,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
             </div>
           </div>
         </div>
+        </>}
       </div>
     </div>
   );
