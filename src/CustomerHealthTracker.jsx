@@ -44,7 +44,8 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
       endUserNPS: 2,
       supportSurvey: 1,
       sentiment: 4,
-      leadership: 5
+      leadership: 5,
+      applicantCES: 1
     }
   };
 
@@ -55,20 +56,21 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
   const [formData, setFormData] = useState({
     name: '', segment: '', csm: '', toolsDeployed: '', interactionChampion: '',
     interactionDecisionMaker: '', daysActive: '', roiEstablished: '', championNPS: '',
-    endUserNPS: '', supportSurvey: '', sentiment: '', leadership: '', notes: '', isActive: true
+    endUserNPS: '', supportSurvey: '', sentiment: '', leadership: '', applicantCES: '', notes: '', isActive: true
   });
 
   const metricLabels = {
     toolsDeployed: 'Tools Deployed',
-    interactionChampion: 'Interaction with Champion',
-    interactionDecisionMaker: 'Interaction with Decision Maker',
+    interactionChampion: 'Engagement with Champion',
+    interactionDecisionMaker: 'Engagement with Decision Maker',
     daysActive: 'Days Active (30 Days)',
-    roiEstablished: 'ROI Established',
+    roiEstablished: 'ROI',
     championNPS: 'Champion/Decision Maker NPS',
     endUserNPS: 'End User NPS',
     supportSurvey: 'End User Support Survey Score',
     sentiment: 'Sentiment',
-    leadership: 'Leadership Change'
+    leadership: 'Leadership Change',
+    applicantCES: 'Applicant CES Score'
   };
 
   const metricDescriptions = {
@@ -76,68 +78,74 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
     interactionChampion: 'The level of engagement the champion is having with our team via email, text, meetings or any other communication.',
     interactionDecisionMaker: 'The level of engagement the decision maker is having with our team via email, text, meetings or any other communication.',
     daysActive: 'The amount of usage (measured by applicant count) in their account.',
-    roiEstablished: 'This dimension tracks the customer business objectives and places an ROI on JF\'s help in those initiatives. Can be Economic ROI, Ease of Doing Business, or Innovation of Process.',
+    roiEstablished: 'This dimension tracks the customer business objectives and places an ROI on JF\'s help in those initiatives. Can be Economic ROI (improving revenue/reducing costs), Ease of Doing Business (more efficient operations), or Innovation of Process (key part of major company initiative).',
     championNPS: 'NPS survey sent to Champions automatically at the 6 month mark of the contract and manually sent or collected by JF team members where applicable.',
     endUserNPS: 'NPS survey automatically sent to end users after completing implementation & 9 months.',
-    supportSurvey: 'After an end-user\'s support ticket is resolved, they receive a Customer Experience survey (CES), measuring the ease with which the customer was able to resolve a support issue. Customers rate on a 1-7 scale.',
+    supportSurvey: 'After an end-user\'s support ticket is resolved, they receive a Customer Experience survey (CES), measuring the ease with which the customer was able to resolve a support issue, use our product or service, or find the information they needed. Customers rate on a 1-7 scale.',
     sentiment: 'Objective measure of customer sentiment as assessed by the CSM and/or other JF Stakeholders who have interacted with the customer.',
-    leadership: 'Champion or decision maker change and their level of engagement/buy-in to the partnership.'
+    leadership: 'Champion or decision maker change and their level of engagement/buy-in to the partnership.',
+    applicantCES: 'After an applicant\'s support ticket is resolved, they receive a Customer Experience survey (CES), measuring the ease with which they were able to resolve a support issue, use our product or service, or find the information they needed. Applicant rates their experience on a 1-7 rating scale.'
   };
 
   const metricGuidelines = {
     toolsDeployed: {
-      low: '0 of the tools purchased are implemented',
+      high: '0 of the tools purchased are implemented',
       medium: '1+ but not all purchased tools have been implemented',
-      high: 'All purchased tools have been implemented'
+      low: 'All purchased tools have been implemented'
     },
     interactionChampion: {
-      low: 'No contact with champion in last 6 months',
+      high: 'No contact with champion in last 6 months',
       medium: 'No contact with champion in the last 3 months',
-      high: 'Contact with champion within the last 3 months'
+      low: 'Contact with champion within the last 3 months'
     },
     interactionDecisionMaker: {
-      low: 'No contact with decision maker in last 9 months',
+      high: 'No contact with decision maker in last 9 months',
       medium: 'No contact with decision maker in the last 6 months',
-      high: 'Contact with decision maker in the last 6 months'
+      low: 'Contact with decision maker in the last 6 months'
     },
     daysActive: {
-      low: '0-4 Active Days in the last 30 days',
+      high: '0-4 Active Days in the last 30 days',
       medium: '5-14 Active Days in the last 30 days',
-      high: '14+ Active Days in the last 30 days'
+      low: '14+ Active Days in the last 30 days'
     },
     roiEstablished: {
-      low: 'ROI hasn\'t been established',
+      high: 'ROI hasn\'t been established',
       medium: 'ROI has been established but hasn\'t been agreed to by budget holder or KDM',
-      high: 'ROI has been established and has been agreed to by KDM and budget holders'
+      low: 'ROI has been established and has been agreed to by KDM and budget holders'
     },
     championNPS: {
-      low: 'No score has been collected by a champion or score collected is ≤ 6',
+      high: 'No score has been collected by a champion or score collected is ≤ 6',
       medium: 'Score has been collected and the score is 7-8',
-      high: 'Score has been collected and the score is 9 or above'
+      low: 'Score has been collected and the score is 9 or above'
     },
     endUserNPS: {
-      low: 'No score has been collected by an End User or score collected is ≤ 6',
+      high: 'No score has been collected by an End User or score collected is ≤ 6',
       medium: 'Score has been collected and the score is 7-8',
-      high: 'Score has been collected and the score is 9 or above'
+      low: 'Score has been collected and the score is 9 or above'
     },
     supportSurvey: {
-      low: 'Avg CES score is ≤ 3',
+      high: 'Avg CES score is ≤ 3',
       medium: 'Avg CES score is 4 or 5',
-      high: 'Avg CES score is 6 or 7'
+      low: 'Avg CES score is 6 or 7'
     },
     sentiment: {
-      low: 'Champion or decision-maker currently have negative sentiment about the partnership and product',
+      high: 'Champion or decision-maker currently have negative sentiment about the partnership and product',
       medium: 'Champion or decision-maker are positive but others have expressed negative sentiment',
-      high: 'All customers currently have positive sentiment towards the partnership and product'
+      low: 'All customers currently have positive sentiment towards the partnership and product'
     },
     leadership: {
-      low: 'Champion or decision maker change and not engaging or have concluded they\'re not bought in',
+      high: 'Champion or decision maker change and not engaging or have concluded they\'re not bought in',
       medium: 'Champion or decision maker change and engaging with us (although not yet bought in)',
-      high: 'No champion/KDM has changed OR 1 or both have changed but they are bought in to partnership and product'
+      low: 'No champion/KDM has changed OR 1 or both have changed but they are bought in to partnership and product'
+    },
+    applicantCES: {
+      high: 'Average score is < 5',
+      medium: 'Average score is > 5',
+      low: 'Average score is > 5.75'
     }
   };
 
-  const optionalMetrics = ['championNPS', 'endUserNPS', 'supportSurvey'];
+  const optionalMetrics = ['championNPS', 'endUserNPS', 'supportSurvey', 'applicantCES'];
 
   // Load customers from Supabase
   const loadCustomers = async () => {
@@ -175,6 +183,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
           supportSurvey: customer.support_survey,
           sentiment: customer.sentiment,
           leadership: customer.leadership,
+          applicantCES: customer.applicant_ces,
           notes: customer.notes,
           isActive: customer.is_active !== false,
           history: historyData ? historyData.map(h => ({
@@ -188,7 +197,8 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
             endUserNPS: h.end_user_nps,
             supportSurvey: h.support_survey,
             sentiment: h.sentiment,
-            leadership: h.leadership
+            leadership: h.leadership,
+            applicantCES: h.applicant_ces
           })) : []
         };
       }));
@@ -246,6 +256,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
           supportSurvey: c.supportSurvey || '',
           sentiment: c.sentiment || '',
           leadership: c.leadership || '',
+          applicantCES: c.applicantCES || '',
           notes: c.notes || ''
         };
       });
@@ -364,6 +375,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
             support_survey: responses.supportSurvey,
             sentiment: responses.sentiment,
             leadership: responses.leadership,
+            applicant_ces: responses.applicantCES,
             notes: responses.notes,
             updated_at: new Date().toISOString()
           })
@@ -388,7 +400,8 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
             end_user_nps: responses.endUserNPS,
             support_survey: responses.supportSurvey,
             sentiment: responses.sentiment,
-            leadership: responses.leadership
+            leadership: responses.leadership,
+            applicant_ces: responses.applicantCES
           });
 
         if (historyError) throw historyError;
@@ -668,7 +681,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
       setFormData({
         name: '', segment: '', csm: '', toolsDeployed: '', interactionChampion: '',
         interactionDecisionMaker: '', daysActive: '', roiEstablished: '', championNPS: '',
-        endUserNPS: '', supportSurvey: '', sentiment: '', leadership: '', notes: '', isActive: true
+        endUserNPS: '', supportSurvey: '', sentiment: '', leadership: '', applicantCES: '', notes: '', isActive: true
       });
       setShowAddForm(false);
 
@@ -696,6 +709,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
       supportSurvey: customer.supportSurvey,
       sentiment: customer.sentiment,
       leadership: customer.leadership,
+      applicantCES: customer.applicantCES,
       notes: customer.notes,
       isActive: customer.isActive !== false
     });
@@ -1045,7 +1059,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
                     setFormData({
                       name: '', segment: '', csm: '', toolsDeployed: '', interactionChampion: '',
                       interactionDecisionMaker: '', daysActive: '', roiEstablished: '', championNPS: '',
-                      endUserNPS: '', supportSurvey: '', sentiment: '', leadership: '', notes: ''
+                      endUserNPS: '', supportSurvey: '', sentiment: '', leadership: '', applicantCES: '', notes: ''
                     });
                     setShowAddForm(true);
                   }}
