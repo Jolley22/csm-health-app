@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Plus, TrendingUp, TrendingDown, AlertCircle, Search, X, Settings, ChevronDown, Send, ExternalLink, Copy, Check, CheckCircle, ArrowLeft, Save, History, LogOut, Upload, BarChart2 } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, AlertCircle, Search, X, Settings, Send, ExternalLink, Copy, Check, CheckCircle, Save, History, LogOut, Upload, BarChart2 } from 'lucide-react';
 import CSVImport from './CSVImport';
 import Dashboard from './Dashboard';
 import { optionalMetrics, calculateWeightedRiskScore } from './scoring';
@@ -289,6 +289,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
     }));
   };
 
+  // eslint-disable-next-line no-unused-vars
   const handleSurveyNotesChange = (customerId, notes) => {
     setSurveyResponses(prev => ({
       ...prev,
@@ -299,6 +300,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
     }));
   };
 
+  // eslint-disable-next-line no-unused-vars
   const goToNextCustomer = () => {
     const surveyCustomers = getSurveyCustomers();
     if (currentCustomerIndex < surveyCustomers.length - 1) {
@@ -306,12 +308,14 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const goToPreviousCustomer = () => {
     if (currentCustomerIndex > 0) {
       setCurrentCustomerIndex(currentCustomerIndex - 1);
     }
   };
 
+  // eslint-disable-next-line no-unused-vars
   const isCurrentCustomerComplete = () => {
     const surveyCustomers = getSurveyCustomers();
     const currentCustomer = surveyCustomers[currentCustomerIndex];
@@ -397,6 +401,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
   if (surveyMode) {
     const surveyCustomers = getSurveyCustomers();
     const currentCustomer = surveyCustomers[currentCustomerIndex];
+    // eslint-disable-next-line no-unused-vars
     const progress = ((currentCustomerIndex + 1) / surveyCustomers.length) * 100;
     const completedCount = surveyCustomers.filter(c => {
       const responses = surveyResponses[c.id];
