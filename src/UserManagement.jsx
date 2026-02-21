@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Plus, X, UserCheck, UserX } from 'lucide-react';
+import { Plus, X, UserCheck, UserX, Pencil } from 'lucide-react';
 
 const CSM_NAMES = ['Brooke', 'Natalie', 'Ryan', 'Jasmin', 'Jake', 'Jessica', 'Cody', 'Emmalyn'];
 
@@ -8,12 +8,18 @@ export default function UserManagement({ currentUserId }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
+  const [editingUser, setEditingUser] = useState(null); // user object being edited
   const [formData, setFormData] = useState({
     email: '', password: '', role: 'csm', csm_name: '', full_name: ''
   });
+  const [editData, setEditData] = useState({
+    email: '', role: 'csm', csm_name: '', full_name: ''
+  });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
+  const [editError, setEditError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [editSaving, setEditSaving] = useState(false);
 
   const loadUsers = async () => {
     setLoading(true);
@@ -32,9 +38,66 @@ export default function UserManagement({ currentUserId }) {
     setFormData(prev => ({
       ...prev,
       [name]: value,
-      // Clear csm_name when switching to admin role
       ...(name === 'role' && value === 'admin' ? { csm_name: '' } : {})
     }));
+  };
+
+  const handleEditInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditData(prev => ({
+      ...prev,
+      [name]: value,
+      ...(name === 'role' && value === 'admin' ? { csm_name: '' } : {})
+    }));
+  };
+
+  const startEditing = (user) => {
+    setEditingUser(user);
+    setEditData({
+      email: user.email,
+      role: user.role,
+      csm_name: user.csm_name || '',
+      full_name: user.full_name || ''
+    });
+    setEditError('');
+  };
+
+  const cancelEditing = () => {
+    setEditingUser(null);
+    setEditError('');
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    setEditError('');
+
+    if (editData.role === 'csm' && !editData.csm_name) {
+      setEditError('CSM Name is required for CSM users.');
+      return;
+    }
+
+    setEditSaving(true);
+    try {
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          email: editData.email,
+          role: editData.role,
+          csm_name: editData.role === 'csm' ? editData.csm_name : null,
+          full_name: editData.full_name || null,
+        })
+        .eq('id', editingUser.id);
+
+      if (error) throw error;
+
+      setEditingUser(null);
+      setFormSuccess(`User "${editData.email}" updated successfully.`);
+      await loadUsers();
+    } catch (err) {
+      setEditError(err.message);
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const handleCreateUser = async (e) => {
@@ -49,7 +112,6 @@ export default function UserManagement({ currentUserId }) {
 
     setSaving(true);
     try {
-      // Create auth user — requires email confirmation ON in Supabase so admin session is preserved
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -58,7 +120,6 @@ export default function UserManagement({ currentUserId }) {
       if (authError) throw authError;
       if (!authData.user) throw new Error('User creation failed: no user returned.');
 
-      // Insert profile row
       const { error: profileError } = await supabase
         .from('user_profiles')
         .insert({
@@ -107,7 +168,7 @@ export default function UserManagement({ currentUserId }) {
           <p className="text-sm text-gray-500 mt-1">Create and manage user accounts and roles.</p>
         </div>
         <button
-          onClick={() => { setShowForm(true); setFormError(''); setFormSuccess(''); }}
+          onClick={() => { setShowForm(true); setFormError(''); setFormSuccess(''); setEditingUser(null); }}
           className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
         >
           <Plus className="w-4 h-4" />
@@ -247,40 +308,143 @@ export default function UserManagement({ currentUserId }) {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {users.map(user => (
-                <tr key={user.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-900">{user.full_name || <span className="text-gray-400">—</span>}</td>
-                  <td className="px-4 py-3 text-gray-700">{user.email}</td>
-                  <td className="px-4 py-3">{roleBadge(user.role)}</td>
-                  <td className="px-4 py-3 text-gray-700">{user.csm_name || <span className="text-gray-400">—</span>}</td>
-                  <td className="px-4 py-3">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                      user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {user.is_active ? 'Active' : 'Inactive'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    {user.id !== currentUserId && (
-                      <button
-                        onClick={() => handleToggleActive(user)}
-                        className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium border transition-colors ${
-                          user.is_active
-                            ? 'border-red-200 text-red-600 hover:bg-red-50'
-                            : 'border-green-200 text-green-600 hover:bg-green-50'
-                        }`}
-                      >
-                        {user.is_active ? (
-                          <><UserX className="w-3 h-3" /> Deactivate</>
+                <React.Fragment key={user.id}>
+                  <tr className={`hover:bg-gray-50 ${editingUser?.id === user.id ? 'bg-blue-50' : ''}`}>
+                    <td className="px-4 py-3 text-gray-900">{user.full_name || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-4 py-3 text-gray-700">{user.email}</td>
+                    <td className="px-4 py-3">{roleBadge(user.role)}</td>
+                    <td className="px-4 py-3 text-gray-700">{user.csm_name || <span className="text-gray-400">—</span>}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {user.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {editingUser?.id === user.id ? (
+                          <button
+                            onClick={cancelEditing}
+                            className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50"
+                          >
+                            <X className="w-3 h-3" /> Cancel
+                          </button>
                         ) : (
-                          <><UserCheck className="w-3 h-3" /> Activate</>
+                          <button
+                            onClick={() => { startEditing(user); setShowForm(false); }}
+                            className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium border border-blue-200 text-blue-600 hover:bg-blue-50"
+                          >
+                            <Pencil className="w-3 h-3" /> Edit
+                          </button>
                         )}
-                      </button>
-                    )}
-                    {user.id === currentUserId && (
-                      <span className="text-xs text-gray-400">You</span>
-                    )}
-                  </td>
-                </tr>
+                        {user.id !== currentUserId && (
+                          <button
+                            onClick={() => handleToggleActive(user)}
+                            className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium border transition-colors ${
+                              user.is_active
+                                ? 'border-red-200 text-red-600 hover:bg-red-50'
+                                : 'border-green-200 text-green-600 hover:bg-green-50'
+                            }`}
+                          >
+                            {user.is_active ? (
+                              <><UserX className="w-3 h-3" /> Deactivate</>
+                            ) : (
+                              <><UserCheck className="w-3 h-3" /> Activate</>
+                            )}
+                          </button>
+                        )}
+                        {user.id === currentUserId && !editingUser && (
+                          <span className="text-xs text-gray-400">You</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+
+                  {editingUser?.id === user.id && (
+                    <tr className="bg-blue-50 border-b border-blue-100">
+                      <td colSpan={6} className="px-4 py-4">
+                        <form onSubmit={handleSaveEdit} className="space-y-3">
+                          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Editing {user.email}</p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
+                              <input
+                                type="text"
+                                name="full_name"
+                                value={editData.full_name}
+                                onChange={handleEditInputChange}
+                                placeholder="Full name"
+                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
+                              <input
+                                type="email"
+                                name="email"
+                                value={editData.email}
+                                onChange={handleEditInputChange}
+                                required
+                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">Role</label>
+                              <select
+                                name="role"
+                                value={editData.role}
+                                onChange={handleEditInputChange}
+                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                              >
+                                <option value="csm">CSM</option>
+                                <option value="admin">Admin</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium text-gray-700 mb-1">CSM Name</label>
+                              <select
+                                name="csm_name"
+                                value={editData.csm_name}
+                                onChange={handleEditInputChange}
+                                disabled={editData.role === 'admin'}
+                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-100 disabled:text-gray-400"
+                              >
+                                <option value="">— None —</option>
+                                {CSM_NAMES.map(name => (
+                                  <option key={name} value={name}>{name}</option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          {editError && (
+                            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">
+                              {editError}
+                            </div>
+                          )}
+
+                          <div className="flex gap-2 justify-end">
+                            <button
+                              type="button"
+                              onClick={cancelEditing}
+                              className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="submit"
+                              disabled={editSaving}
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
+                            >
+                              {editSaving ? 'Saving...' : 'Save Changes'}
+                            </button>
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
               ))}
             </tbody>
           </table>
