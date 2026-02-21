@@ -963,7 +963,7 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
         )}
 
         {activeTab === 'users' && isAdmin && (
-          <UserManagement currentUserId={session.user.id} />
+          <UserManagement currentUserId={session.user.id} adminEmail={session.user.email} />
         )}
 
         {activeTab === 'customers' && <>
