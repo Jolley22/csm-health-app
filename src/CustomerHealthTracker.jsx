@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Plus, TrendingUp, TrendingDown, AlertCircle, Search, X, Settings, Send, ExternalLink, Copy, Check, CheckCircle, Save, History, LogOut, Upload, BarChart2 } from 'lucide-react';
+import { Plus, TrendingUp, TrendingDown, AlertCircle, Search, X, Settings, Send, ExternalLink, Copy, Check, CheckCircle, Save, History, LogOut, Upload, BarChart2, Users } from 'lucide-react';
 import CSVImport from './CSVImport';
 import Dashboard from './Dashboard';
+import UserManagement from './UserManagement';
 import { optionalMetrics, calculateWeightedRiskScore } from './scoring';
 
-const CustomerHealthTracker = ({ session, onSignOut }) => {
+const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
+  const isAdmin = userProfile?.role === 'admin';
+  const currentCSMName = userProfile?.csm_name || null;
   const [customers, setCustomers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -131,11 +134,12 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
   const loadCustomers = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('customers')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .order('name');
+      let query = supabase.from('customers').select('*').order('name');
+      // CSMs only see their assigned customers (also enforced by RLS)
+      if (!isAdmin && currentCSMName) {
+        query = query.eq('csm', currentCSMName);
+      }
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -313,8 +317,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
             notes: responses.notes,
             updated_at: new Date().toISOString()
           })
-          .eq('id', customerId)
-          .eq('user_id', session.user.id);
+          .eq('id', customerId);
 
         if (updateError) throw updateError;
 
@@ -580,8 +583,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
             is_active: formData.isActive,
             updated_at: new Date().toISOString()
           })
-          .eq('id', editingCustomer.id)
-          .eq('user_id', session.user.id);
+          .eq('id', editingCustomer.id);
 
         if (error) throw error;
         setEditingCustomer(null);
@@ -656,8 +658,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
         const { error } = await supabase
           .from('customers')
           .delete()
-          .eq('id', id)
-          .eq('user_id', session.user.id);
+          .eq('id', id);
 
         if (error) throw error;
         await loadCustomers();
@@ -726,23 +727,33 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
         <div className="flex justify-between items-start mb-6">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 mb-1">Customer Health Score Dashboard</h1>
-            <p className="text-gray-600">Weighted risk-based scoring system • Logged in as {session.user.email}</p>
+            <p className="text-gray-600 flex items-center gap-2 flex-wrap">
+              Logged in as {session.user.email}
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
+                isAdmin ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
+              }`}>{isAdmin ? 'Admin' : 'CSM'}</span>
+              {!isAdmin && currentCSMName && <span className="text-gray-500">({currentCSMName})</span>}
+            </p>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => setShowImport(!showImport)}
-              className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
-            >
-              <Upload className="w-4 h-4" />
-              Import CSV
-            </button>
-            <button
-              onClick={generateSurveyLinks}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
-            >
-              <Send className="w-4 h-4" />
-              Generate Survey Links
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowImport(!showImport)}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 text-sm"
+              >
+                <Upload className="w-4 h-4" />
+                Import CSV
+              </button>
+            )}
+            {isAdmin && (
+              <button
+                onClick={generateSurveyLinks}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+              >
+                <Send className="w-4 h-4" />
+                Generate Survey Links
+              </button>
+            )}
             <button
               onClick={onSignOut}
               className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
@@ -777,6 +788,19 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
             <BarChart2 className="w-4 h-4" />
             Dashboard
           </button>
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('users')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'users'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              Users
+            </button>
+          )}
         </div>
 
         {showSurveyModal && (
@@ -938,6 +962,10 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
           <Dashboard customers={customers} />
         )}
 
+        {activeTab === 'users' && isAdmin && (
+          <UserManagement currentUserId={session.user.id} />
+        )}
+
         {activeTab === 'customers' && <>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
           <div className="bg-white rounded-lg shadow p-5">
@@ -971,7 +999,7 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
           </div>
         </div>
 
-        {showImport && (
+        {isAdmin && showImport && (
           <CSVImport
             userId={session.user.id}
             onImportComplete={() => {
@@ -1006,10 +1034,12 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
                   <option value="all">All Segments</option>
                   {segments.map(seg => (<option key={seg} value={seg}>Segment {seg}</option>))}
                 </select>
-                <select value={filterCSM} onChange={(e) => setFilterCSM(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
-                  <option value="all">All CSMs</option>
-                  {csms.map(csm => (<option key={csm} value={csm}>{csm}</option>))}
-                </select>
+                {isAdmin && (
+                  <select value={filterCSM} onChange={(e) => setFilterCSM(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
+                    <option value="all">All CSMs</option>
+                    {csms.map(csm => (<option key={csm} value={csm}>{csm}</option>))}
+                  </select>
+                )}
                 <select value={filterActive} onChange={(e) => setFilterActive(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
                   <option value="all">All Status</option>
                   <option value="active">Active Only</option>
@@ -1019,9 +1049,9 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
                   onClick={() => {
                     setEditingCustomer(null);
                     setFormData({
-                      name: '', segment: '', csm: '', toolsDeployed: '', interactionChampion: '',
+                      name: '', segment: '', csm: isAdmin ? '' : (currentCSMName || ''), toolsDeployed: '', interactionChampion: '',
                       interactionDecisionMaker: '', daysActive: '', roiEstablished: '', championNPS: '',
-                      endUserNPS: '', supportSurvey: '', sentiment: '', leadership: '', applicantCES: '', notes: ''
+                      endUserNPS: '', supportSurvey: '', sentiment: '', leadership: '', applicantCES: '', notes: '', isActive: true
                     });
                     setShowAddForm(true);
                   }}
@@ -1126,10 +1156,19 @@ const CustomerHealthTracker = ({ session, onSignOut }) => {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">CSM</label>
-                  <select name="csm" value={formData.csm} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                    <option value="">Select CSM</option>
-                    {csms.map(csm => (<option key={csm} value={csm}>{csm}</option>))}
-                  </select>
+                  {isAdmin ? (
+                    <select name="csm" value={formData.csm} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                      <option value="">Select CSM</option>
+                      {csms.map(csm => (<option key={csm} value={csm}>{csm}</option>))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={currentCSMName || ''}
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500"
+                    />
+                  )}
                 </div>
                 <div>
                   <label className="flex items-center gap-2 text-sm font-medium text-gray-700">

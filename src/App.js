@@ -5,32 +5,67 @@ import CustomerHealthTracker from './CustomerHealthTracker';
 
 function App() {
   const [session, setSession] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
+
+  const loadUserProfile = async (userId) => {
+    setProfileLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('id, email, role, csm_name, full_name, is_active')
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+
+      if (data && !data.is_active) {
+        await supabase.auth.signOut();
+        return;
+      }
+
+      setUserProfile(data);
+    } catch (err) {
+      console.error('Failed to load user profile:', err);
+      await supabase.auth.signOut();
+    } finally {
+      setProfileLoading(false);
+    }
+  };
 
   useEffect(() => {
-    // Check if user is already logged in
     const sessionTimeout = setTimeout(() => setLoading(false), 5000);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       clearTimeout(sessionTimeout);
       setSession(session);
+      if (session?.user) {
+        loadUserProfile(session.user.id);
+      }
       setLoading(false);
     });
 
-    // Listen for auth changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user) {
+        loadUserProfile(session.user.id);
+      } else {
+        setUserProfile(null);
+      }
     });
 
     return () => subscription.unsubscribe();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
   };
 
-  if (loading) {
+  if (loading || profileLoading) {
     return (
       <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ color: '#666' }}>Loading...</div>
@@ -38,12 +73,17 @@ function App() {
     );
   }
 
-  // Check if we have a valid session with a user
-  if (!session || !session.user) {
+  if (!session || !session.user || !userProfile) {
     return <Auth onAuthSuccess={setSession} />;
   }
 
-  return <CustomerHealthTracker session={session} onSignOut={handleSignOut} />;
+  return (
+    <CustomerHealthTracker
+      session={session}
+      userProfile={userProfile}
+      onSignOut={handleSignOut}
+    />
+  );
 }
 
 export default App;
