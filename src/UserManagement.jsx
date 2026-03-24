@@ -10,7 +10,7 @@ export default function UserManagement({ currentUserId, adminEmail }) {
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null); // user object being edited
   const [formData, setFormData] = useState({
-    email: '', password: '', adminPassword: '', role: 'csm', csm_name: '', full_name: ''
+    email: '', role: 'csm', csm_name: '', full_name: ''
   });
   const [editData, setEditData] = useState({
     email: '', role: 'csm', csm_name: '', full_name: ''
@@ -112,10 +112,15 @@ export default function UserManagement({ currentUserId, adminEmail }) {
 
     setSaving(true);
     try {
-      // Step 1: Create the new auth user (with email confirmation OFF this creates a live session)
+      // Save admin session tokens before signUp replaces the session
+      const { data: { session: adminSession } } = await supabase.auth.getSession();
+      if (!adminSession) throw new Error('Could not retrieve admin session.');
+
+      // Step 1: Create the new auth user with a random password (user will sign in via Google)
+      const tempPassword = crypto.randomUUID() + crypto.randomUUID();
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
-        password: formData.password,
+        password: tempPassword,
       });
 
       if (authError) throw authError;
@@ -123,13 +128,13 @@ export default function UserManagement({ currentUserId, adminEmail }) {
 
       const newUserId = authData.user.id;
 
-      // Step 2: Re-sign in as admin to restore the session before inserting the profile
-      const { error: reAuthError } = await supabase.auth.signInWithPassword({
-        email: adminEmail,
-        password: formData.adminPassword,
+      // Step 2: Restore the admin session using saved tokens
+      const { error: restoreError } = await supabase.auth.setSession({
+        access_token: adminSession.access_token,
+        refresh_token: adminSession.refresh_token,
       });
 
-      if (reAuthError) throw new Error(`User created but failed to restore admin session: ${reAuthError.message}. Please refresh and log in again.`);
+      if (restoreError) throw new Error(`User created but failed to restore admin session: ${restoreError.message}. Please refresh and log in again.`);
 
       // Step 3: Insert profile row (now running as the admin again)
       const { error: profileError } = await supabase
@@ -145,8 +150,8 @@ export default function UserManagement({ currentUserId, adminEmail }) {
 
       if (profileError) throw profileError;
 
-      setFormSuccess(`User "${formData.email}" created successfully. They can log in immediately with the password you set.`);
-      setFormData({ email: '', password: '', adminPassword: '', role: 'csm', csm_name: '', full_name: '' });
+      setFormSuccess(`User "${formData.email}" created. They can sign in with Google using this email address.`);
+      setFormData({ email: '', role: 'csm', csm_name: '', full_name: '' });
       setShowForm(false);
       await loadUsers();
     } catch (err) {
@@ -228,31 +233,6 @@ export default function UserManagement({ currentUserId, adminEmail }) {
                   onChange={handleInputChange}
                   required
                   placeholder="user@example.com"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Temporary Password *</label>
-                <input
-                  type="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={handleInputChange}
-                  required
-                  minLength={8}
-                  placeholder="Min. 8 characters"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Your Password * <span className="text-gray-400 font-normal">(to stay logged in)</span></label>
-                <input
-                  type="password"
-                  name="adminPassword"
-                  value={formData.adminPassword}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="Your current password"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>
