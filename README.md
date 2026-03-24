@@ -1,70 +1,106 @@
-# Getting Started with Create React App
+# CSM Health App
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A customer health tracking tool for Customer Success Managers (CSMs). Admins and CSMs can track customer health scores, manage accounts, and submit monthly health surveys.
 
-## Available Scripts
+## Tech Stack
 
-In the project directory, you can run:
+- **Frontend:** React
+- **Database:** Supabase (Postgres)
+- **Auth:** Supabase Auth — Email/password or Google OAuth (no self-signup)
+- **Deployed:** Netlify
 
-### `npm start`
+## Roles
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+| Role | Access |
+|---|---|
+| `admin` | Full access — dashboards, user management, all customers, all CSMs, CSV import |
+| `csm` | Own assigned customers only — view, edit, complete surveys. No dashboard access. |
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### CSM Permissions Detail
 
-### `npm test`
+- CSMs see only customers where `customers.csm` matches their `full_name`
+- CSMs cannot access the Dashboard or User Management tabs
+- Row-level security (RLS) enforces CSM data isolation at the database level
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## Local Development
 
-### `npm run build`
+```bash
+npm install
+npm start
+```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Database (Supabase)
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+Project URL: `https://bkpvwqdtmyfamhryytql.supabase.co`
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+### Tables
 
-### `npm run eject`
+| Table | Description |
+|---|---|
+| `customers` | Customer accounts with health scores and CSM assignments |
+| `customer_history` | Historical health score records per customer |
+| `user_profiles` | User roles and profile data (`admin` or `csm`) |
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### Keeping the Free Tier Active
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Supabase pauses free projects after **1 week of inactivity**. A daily cron job via [cron-job.org](https://cron-job.org) prevents this.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+**Setup steps:**
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+1. Create a free account at [cron-job.org](https://cron-job.org)
+2. Click **Create cronjob** — Common tab:
 
-## Learn More
+| Field | Value |
+|---|---|
+| Title | `Supabase Keep Alive` |
+| URL | `https://bkpvwqdtmyfamhryytql.supabase.co/rest/v1/customers?limit=1` |
+| Schedule | Every day at 3 AM (`0 3 * * *`) |
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+3. Advanced tab — add these **Headers**:
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+| Key | Value |
+|---|---|
+| `apikey` | `<Supabase anon key from supabaseClient.js>` |
+| `Authorization` | `Bearer <Supabase anon key>` |
 
-### Code Splitting
+4. Click **Test Run** — confirm `200 OK`
+5. Click **Create**
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+Enable failure notifications so you are alerted if the job stops working.
 
-### Analyzing the Bundle Size
+## Automated Slack Reminders
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+Monthly survey reminders are sent to Slack via GitHub Actions on the 1st of each month.
 
-### Making a Progressive Web App
+See [SLACK_SETUP.md](./SLACK_SETUP.md) for full setup instructions.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Authentication
 
-### Advanced Configuration
+Users can sign in via:
+- **Google OAuth** — recommended, no password needed
+- **Email/password** — supported but not the primary flow
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+Google OAuth is configured in Supabase → Authentication → Providers → Google. The callback URL is `https://bkpvwqdtmyfamhryytql.supabase.co/auth/v1/callback`.
 
-### Deployment
+After a Google sign-in, the app looks up the user's profile in `user_profiles` by email. If no matching profile exists, access is denied.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## User Management
 
-### `npm run build` fails to minify
+Admins create and manage users from the **User Management** tab. Key rules:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+- **Full Name is required for CSM users** — it is used as the unique CSM identifier and must match the `csm` field on customer records
+- `csm_name` in `user_profiles` is auto-set to `full_name` — no separate CSM Name field
+- CSM dropdown lists in the app are populated dynamically from active CSM user profiles (no hardcoded names)
+- Users are created directly in Supabase Auth — no email confirmation required (disabled in Supabase Auth settings)
+
+### Adding a New CSM
+
+1. Admin goes to **User Management** → **Add User**
+2. Enters **Full Name** (e.g. `Brooke Taylor`), **Email**, **Role: CSM**
+3. New customer records should use that exact full name in the `csm` field
+
+## Build for Production
+
+```bash
+npm run build
+```

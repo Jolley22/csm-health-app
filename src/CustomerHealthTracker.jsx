@@ -8,7 +8,7 @@ import { optionalMetrics, calculateWeightedRiskScore } from './scoring';
 
 const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
   const isAdmin = userProfile?.role === 'admin';
-  const currentCSMName = userProfile?.csm_name || null;
+  const currentCSMName = userProfile?.full_name || null;
   const [customers, setCustomers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -35,8 +35,8 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
   const [surveyComplete, setSurveyComplete] = useState(false);
 
   const segments = ['1', '2', '3', '4'];
-  const csms = ['Brooke', 'Natalie', 'Ryan', 'Jasmin', 'Jake', 'Jessica', 'Cody', 'Emmalyn'];
   const ratingOptions = ['High', 'Medium', 'Low'];
+  const [csmUsers, setCsmUsers] = useState([]);
 
   const [formData, setFormData] = useState({
     name: '', segment: '', csm: '', toolsDeployed: '', interactionChampion: '',
@@ -196,8 +196,19 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
     }
   };
 
+  const loadCsmUsers = async () => {
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('id, full_name')
+      .eq('role', 'csm')
+      .eq('is_active', true)
+      .order('full_name');
+    if (data) setCsmUsers(data);
+  };
+
   useEffect(() => {
     loadCustomers();
+    loadCsmUsers();
 
     // Check URL for survey mode - support both hash (#survey) and query param (?survey)
     const hash = window.location.hash;
@@ -259,7 +270,8 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
     const links = {};
     const baseUrl = window.location.origin + window.location.pathname;
 
-    csms.forEach(csm => {
+    csmUsers.forEach(csmUser => {
+      const csm = csmUser.full_name;
       const csmCustomers = customers.filter(c => c.csm === csm && c.isActive !== false);
       if (csmCustomers.length > 0) {
         const customerIds = csmCustomers.map(c => c.id).join(',');
@@ -1039,7 +1051,7 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
                 {isAdmin && (
                   <select value={filterCSM} onChange={(e) => setFilterCSM(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
                     <option value="all">All CSMs</option>
-                    {csms.map(csm => (<option key={csm} value={csm}>{csm}</option>))}
+                    {csmUsers.map(u => (<option key={u.id} value={u.full_name}>{u.full_name}</option>))}
                   </select>
                 )}
                 <select value={filterActive} onChange={(e) => setFilterActive(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
@@ -1161,7 +1173,7 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
                   {isAdmin ? (
                     <select name="csm" value={formData.csm} onChange={handleInputChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
                       <option value="">Select CSM</option>
-                      {csms.map(csm => (<option key={csm} value={csm}>{csm}</option>))}
+                      {csmUsers.map(u => (<option key={u.id} value={u.full_name}>{u.full_name}</option>))}
                     </select>
                   ) : (
                     <input

@@ -2,18 +2,16 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 import { Plus, X, UserCheck, UserX, Pencil } from 'lucide-react';
 
-const CSM_NAMES = ['Brooke', 'Natalie', 'Ryan', 'Jasmin', 'Jake', 'Jessica', 'Cody', 'Emmalyn'];
-
 export default function UserManagement({ currentUserId, adminEmail }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null); // user object being edited
   const [formData, setFormData] = useState({
-    email: '', role: 'csm', csm_name: '', full_name: ''
+    email: '', role: 'csm', full_name: ''
   });
   const [editData, setEditData] = useState({
-    email: '', role: 'csm', csm_name: '', full_name: ''
+    email: '', role: 'csm', full_name: ''
   });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
@@ -35,20 +33,12 @@ export default function UserManagement({ currentUserId, adminEmail }) {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value,
-      ...(name === 'role' && value === 'admin' ? { csm_name: '' } : {})
-    }));
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
   const handleEditInputChange = (e) => {
     const { name, value } = e.target;
-    setEditData(prev => ({
-      ...prev,
-      [name]: value,
-      ...(name === 'role' && value === 'admin' ? { csm_name: '' } : {})
-    }));
+    setEditData(prev => ({ ...prev, [name]: value }));
   };
 
   const startEditing = (user) => {
@@ -56,7 +46,6 @@ export default function UserManagement({ currentUserId, adminEmail }) {
     setEditData({
       email: user.email,
       role: user.role,
-      csm_name: user.csm_name || '',
       full_name: user.full_name || ''
     });
     setEditError('');
@@ -71,8 +60,8 @@ export default function UserManagement({ currentUserId, adminEmail }) {
     e.preventDefault();
     setEditError('');
 
-    if (editData.role === 'csm' && !editData.csm_name) {
-      setEditError('CSM Name is required for CSM users.');
+    if (editData.role === 'csm' && !editData.full_name) {
+      setEditError('Full Name is required for CSM users.');
       return;
     }
 
@@ -83,7 +72,7 @@ export default function UserManagement({ currentUserId, adminEmail }) {
         .update({
           email: editData.email,
           role: editData.role,
-          csm_name: editData.role === 'csm' ? editData.csm_name : null,
+          csm_name: editData.role === 'csm' ? editData.full_name : null,
           full_name: editData.full_name || null,
         })
         .eq('id', editingUser.id);
@@ -105,8 +94,8 @@ export default function UserManagement({ currentUserId, adminEmail }) {
     setFormError('');
     setFormSuccess('');
 
-    if (formData.role === 'csm' && !formData.csm_name) {
-      setFormError('CSM Name is required for CSM users.');
+    if (formData.role === 'csm' && !formData.full_name) {
+      setFormError('Full Name is required for CSM users.');
       return;
     }
 
@@ -143,7 +132,7 @@ export default function UserManagement({ currentUserId, adminEmail }) {
           id: newUserId,
           email: formData.email,
           role: formData.role,
-          csm_name: formData.role === 'csm' ? formData.csm_name : null,
+          csm_name: formData.role === 'csm' ? formData.full_name : null,
           full_name: formData.full_name || null,
           is_active: true,
         });
@@ -151,7 +140,7 @@ export default function UserManagement({ currentUserId, adminEmail }) {
       if (profileError) throw profileError;
 
       setFormSuccess(`User "${formData.email}" created. They can sign in with Google using this email address.`);
-      setFormData({ email: '', role: 'csm', csm_name: '', full_name: '' });
+      setFormData({ email: '', role: 'csm', full_name: '' });
       setShowForm(false);
       await loadUsers();
     } catch (err) {
@@ -214,13 +203,13 @@ export default function UserManagement({ currentUserId, adminEmail }) {
           <form onSubmit={handleCreateUser} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name <span className="text-gray-400">(optional)</span></label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name {formData.role === 'csm' && <span className="text-red-500">*</span>}</label>
                 <input
                   type="text"
                   name="full_name"
                   value={formData.full_name}
                   onChange={handleInputChange}
-                  placeholder="e.g. Brooke Smith"
+                  placeholder="e.g. Brooke Taylor"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
                 />
               </div>
@@ -248,23 +237,6 @@ export default function UserManagement({ currentUserId, adminEmail }) {
                   <option value="admin">Admin</option>
                 </select>
               </div>
-              {formData.role === 'csm' && (
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">CSM Name *</label>
-                  <select
-                    name="csm_name"
-                    value={formData.csm_name}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                  >
-                    <option value="">Select CSM name</option>
-                    {CSM_NAMES.map(name => (
-                      <option key={name} value={name}>{name}</option>
-                    ))}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Must match the CSM name assigned to customers.</p>
-                </div>
-              )}
             </div>
 
             {formError && (
@@ -305,7 +277,6 @@ export default function UserManagement({ currentUserId, adminEmail }) {
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Email</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">CSM Name</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Actions</th>
               </tr>
@@ -317,7 +288,6 @@ export default function UserManagement({ currentUserId, adminEmail }) {
                     <td className="px-4 py-3 text-gray-900">{user.full_name || <span className="text-gray-400">—</span>}</td>
                     <td className="px-4 py-3 text-gray-700">{user.email}</td>
                     <td className="px-4 py-3">{roleBadge(user.role)}</td>
-                    <td className="px-4 py-3 text-gray-700">{user.csm_name || <span className="text-gray-400">—</span>}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
                         user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
@@ -367,10 +337,10 @@ export default function UserManagement({ currentUserId, adminEmail }) {
 
                   {editingUser?.id === user.id && (
                     <tr className="bg-blue-50 border-b border-blue-100">
-                      <td colSpan={6} className="px-4 py-4">
+                      <td colSpan={5} className="px-4 py-4">
                         <form onSubmit={handleSaveEdit} className="space-y-3">
                           <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-2">Editing {user.email}</p>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
                               <input
@@ -403,21 +373,6 @@ export default function UserManagement({ currentUserId, adminEmail }) {
                               >
                                 <option value="csm">CSM</option>
                                 <option value="admin">Admin</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="block text-xs font-medium text-gray-700 mb-1">CSM Name</label>
-                              <select
-                                name="csm_name"
-                                value={editData.csm_name}
-                                onChange={handleEditInputChange}
-                                disabled={editData.role === 'admin'}
-                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm disabled:bg-gray-100 disabled:text-gray-400"
-                              >
-                                <option value="">— None —</option>
-                                {CSM_NAMES.map(name => (
-                                  <option key={name} value={name}>{name}</option>
-                                ))}
                               </select>
                             </div>
                           </div>
