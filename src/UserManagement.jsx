@@ -136,7 +136,7 @@ export default function UserManagement({ currentUserId }) {
   );
 
   const rowKey = (user) => user.isPending ? `pending-${user.email}` : user.id;
-  const editKey = (user) => user.isPending ? `pending-${user.email}` : user.id;
+  const editKey = (user) => user ? (user.isPending ? `pending-${user.email}` : user.id) : null;
 
   return (
     <div className="space-y-6">
