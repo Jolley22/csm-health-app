@@ -10,7 +10,7 @@ function App() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState(null);
 
-  const loadUserProfile = async (userId) => {
+  const loadUserProfile = async (userId, userEmail) => {
     setProfileLoading(true);
     try {
       const { data, error } = await supabase
@@ -20,10 +20,27 @@ function App() {
         .single();
 
       if (error) {
-        // No profile found — user signed in via Google but hasn't been provisioned yet
         if (error.code === 'PGRST116') {
-          await supabase.auth.signOut();
-          setProfileError('Your account has not been provisioned yet. Please contact an administrator.');
+          // No profile found — try to provision from pending_users by email
+          const { data: provisioned, error: rpcError } = await supabase.rpc('provision_pending_user', {
+            user_id: userId,
+            user_email: userEmail,
+          });
+
+          if (rpcError || !provisioned) {
+            await supabase.auth.signOut();
+            setProfileError('Your account has not been provisioned yet. Please contact an administrator.');
+            return;
+          }
+
+          if (!provisioned.is_active) {
+            await supabase.auth.signOut();
+            setProfileError('Your account has been deactivated. Please contact an administrator.');
+            return;
+          }
+
+          setProfileError(null);
+          setUserProfile(provisioned);
           return;
         }
         throw error;
@@ -52,7 +69,7 @@ function App() {
       clearTimeout(sessionTimeout);
       setSession(session);
       if (session?.user) {
-        loadUserProfile(session.user.id);
+        loadUserProfile(session.user.id, session.user.email);
       }
       setLoading(false);
     });
@@ -62,7 +79,7 @@ function App() {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session?.user) {
-        loadUserProfile(session.user.id);
+        loadUserProfile(session.user.id, session.user.email);
       } else {
         setUserProfile(null);
       }
