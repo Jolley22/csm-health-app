@@ -8,6 +8,7 @@ function App() {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState(null);
 
   const loadUserProfile = async (userId) => {
     setProfileLoading(true);
@@ -18,13 +19,23 @@ function App() {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // No profile found — user signed in via Google but hasn't been provisioned yet
+        if (error.code === 'PGRST116') {
+          await supabase.auth.signOut();
+          setProfileError('Your account has not been provisioned yet. Please contact an administrator.');
+          return;
+        }
+        throw error;
+      }
 
       if (data && !data.is_active) {
         await supabase.auth.signOut();
+        setProfileError('Your account has been deactivated. Please contact an administrator.');
         return;
       }
 
+      setProfileError(null);
       setUserProfile(data);
     } catch (err) {
       console.error('Failed to load user profile:', err);
@@ -74,7 +85,7 @@ function App() {
   }
 
   if (!session || !session.user || !userProfile) {
-    return <Auth onAuthSuccess={setSession} />;
+    return <Auth onAuthSuccess={setSession} errorMessage={profileError} />;
   }
 
   return (
