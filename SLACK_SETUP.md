@@ -131,3 +131,33 @@ on:
 - GitHub Actions: Free for public repos, 2000 minutes/month for private repos
 - Slack Incoming Webhooks: Free
 - Supabase: Free tier includes plenty for this use case
+
+---
+
+## Keeping Supabase Active (Free Tier)
+
+Supabase pauses free tier projects after **1 week of inactivity**. A daily cron job prevents this.
+
+### Setup via cron-job.org (Free)
+
+1. Create a free account at [cron-job.org](https://cron-job.org)
+2. Click **Create cronjob** and configure:
+
+| Field | Value |
+|---|---|
+| **Title** | Supabase Keep Alive |
+| **URL** | `https://bkpvwqdtmyfamhryytql.supabase.co/rest/v1/customers?limit=1` |
+| **Schedule** | Every day (cron: `0 3 * * *`) |
+| **Request method** | GET |
+
+3. Under the **Advanced** tab, add these headers:
+
+| Key | Value |
+|---|---|
+| `apikey` | `<your Supabase anon key>` |
+| `Authorization` | `Bearer <your Supabase anon key>` |
+
+4. Click **Test Run** — you should receive a `200 OK` response
+5. Click **Create** to save
+
+The job pings the Supabase REST API daily, keeping the project from being paused. Enable failure notifications so you are alerted if it stops working.
