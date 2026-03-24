@@ -1,18 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
-import { Plus, X, UserCheck, UserX, Pencil } from 'lucide-react';
+import { Plus, X, UserCheck, UserX, Pencil, Trash2 } from 'lucide-react';
 
-export default function UserManagement({ currentUserId, adminEmail }) {
+export default function UserManagement({ currentUserId }) {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
-  const [editingUser, setEditingUser] = useState(null); // user object being edited
-  const [formData, setFormData] = useState({
-    email: '', role: 'csm', full_name: ''
-  });
-  const [editData, setEditData] = useState({
-    email: '', role: 'csm', full_name: ''
-  });
+  const [editingUser, setEditingUser] = useState(null);
+  const [formData, setFormData] = useState({ email: '', role: 'csm', full_name: '' });
+  const [editData, setEditData] = useState({ email: '', role: 'csm', full_name: '' });
   const [formError, setFormError] = useState('');
   const [formSuccess, setFormSuccess] = useState('');
   const [editError, setEditError] = useState('');
@@ -21,11 +17,13 @@ export default function UserManagement({ currentUserId, adminEmail }) {
 
   const loadUsers = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (!error) setUsers(data || []);
+    const [{ data: profiles }, { data: pending }] = await Promise.all([
+      supabase.from('user_profiles').select('*').order('created_at', { ascending: false }),
+      supabase.from('pending_users').select('*').order('created_at', { ascending: false }),
+    ]);
+    const active = (profiles || []).map(u => ({ ...u, isPending: false }));
+    const pendingMapped = (pending || []).map(u => ({ ...u, isPending: true, is_active: u.is_active ?? true }));
+    setUsers([...active, ...pendingMapped]);
     setLoading(false);
   };
 
@@ -43,42 +41,33 @@ export default function UserManagement({ currentUserId, adminEmail }) {
 
   const startEditing = (user) => {
     setEditingUser(user);
-    setEditData({
-      email: user.email,
-      role: user.role,
-      full_name: user.full_name || ''
-    });
+    setEditData({ email: user.email, role: user.role, full_name: user.full_name || '' });
     setEditError('');
   };
 
-  const cancelEditing = () => {
-    setEditingUser(null);
-    setEditError('');
-  };
+  const cancelEditing = () => { setEditingUser(null); setEditError(''); };
 
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     setEditError('');
-
     if (editData.role === 'csm' && !editData.full_name) {
       setEditError('Full Name is required for CSM users.');
       return;
     }
-
     setEditSaving(true);
     try {
+      const table = editingUser.isPending ? 'pending_users' : 'user_profiles';
+      const filter = editingUser.isPending ? { column: 'email', value: editingUser.email } : { column: 'id', value: editingUser.id };
       const { error } = await supabase
-        .from('user_profiles')
+        .from(table)
         .update({
           email: editData.email,
           role: editData.role,
           csm_name: editData.role === 'csm' ? editData.full_name : null,
           full_name: editData.full_name || null,
         })
-        .eq('id', editingUser.id);
-
+        .eq(filter.column, filter.value);
       if (error) throw error;
-
       setEditingUser(null);
       setFormSuccess(`User "${editData.email}" updated successfully.`);
       await loadUsers();
@@ -93,53 +82,28 @@ export default function UserManagement({ currentUserId, adminEmail }) {
     e.preventDefault();
     setFormError('');
     setFormSuccess('');
-
     if (formData.role === 'csm' && !formData.full_name) {
       setFormError('Full Name is required for CSM users.');
       return;
     }
-
     setSaving(true);
     try {
-      // Save admin session tokens before signUp replaces the session
-      const { data: { session: adminSession } } = await supabase.auth.getSession();
-      if (!adminSession) throw new Error('Could not retrieve admin session.');
-
-      // Step 1: Create the new auth user with a random password (user will sign in via Google)
-      const tempPassword = crypto.randomUUID() + crypto.randomUUID();
-      const { data: authData, error: authError } = await supabase.auth.signUp({
+      const { error } = await supabase.from('pending_users').insert({
         email: formData.email,
-        password: tempPassword,
+        role: formData.role,
+        csm_name: formData.role === 'csm' ? formData.full_name : null,
+        full_name: formData.full_name || null,
+        is_active: true,
       });
-
-      if (authError) throw authError;
-      if (!authData.user) throw new Error('User creation failed: no user returned.');
-
-      const newUserId = authData.user.id;
-
-      // Step 2: Restore the admin session using saved tokens
-      const { error: restoreError } = await supabase.auth.setSession({
-        access_token: adminSession.access_token,
-        refresh_token: adminSession.refresh_token,
-      });
-
-      if (restoreError) throw new Error(`User created but failed to restore admin session: ${restoreError.message}. Please refresh and log in again.`);
-
-      // Step 3: Upsert profile row (handles case where a trigger auto-created a bare row)
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .upsert({
-          id: newUserId,
-          email: formData.email,
-          role: formData.role,
-          csm_name: formData.role === 'csm' ? formData.full_name : null,
-          full_name: formData.full_name || null,
-          is_active: true,
-        }, { onConflict: 'id' });
-
-      if (profileError) throw profileError;
-
-      setFormSuccess(`User "${formData.email}" created. They can sign in with Google using this email address.`);
+      if (error) {
+        if (error.code === '23505') {
+          setFormError('A user with this email already exists.');
+        } else {
+          throw error;
+        }
+        return;
+      }
+      setFormSuccess(`"${formData.email}" registered. They will get access when they sign in with Google.`);
       setFormData({ email: '', role: 'csm', full_name: '' });
       setShowForm(false);
       await loadUsers();
@@ -158,6 +122,11 @@ export default function UserManagement({ currentUserId, adminEmail }) {
     if (!error) await loadUsers();
   };
 
+  const handleDeletePending = async (user) => {
+    const { error } = await supabase.from('pending_users').delete().eq('email', user.email);
+    if (!error) await loadUsers();
+  };
+
   const roleBadge = (role) => (
     <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold ${
       role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-blue-100 text-blue-800'
@@ -165,6 +134,9 @@ export default function UserManagement({ currentUserId, adminEmail }) {
       {role === 'admin' ? 'Admin' : 'CSM'}
     </span>
   );
+
+  const rowKey = (user) => user.isPending ? `pending-${user.email}` : user.id;
+  const editKey = (user) => user.isPending ? `pending-${user.email}` : user.id;
 
   return (
     <div className="space-y-6">
@@ -199,11 +171,12 @@ export default function UserManagement({ currentUserId, adminEmail }) {
               <X className="w-5 h-5" />
             </button>
           </div>
-
           <form onSubmit={handleCreateUser} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name {formData.role === 'csm' && <span className="text-red-500">*</span>}</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Full Name {formData.role === 'csm' && <span className="text-red-500">*</span>}
+                </label>
                 <input
                   type="text"
                   name="full_name"
@@ -238,27 +211,17 @@ export default function UserManagement({ currentUserId, adminEmail }) {
                 </select>
               </div>
             </div>
-
             {formError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
-                {formError}
-              </div>
+              <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">{formError}</div>
             )}
-
             <div className="flex gap-2 justify-end pt-2">
-              <button
-                type="button"
-                onClick={() => { setShowForm(false); setFormError(''); }}
-                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
-              >
+              <button type="button" onClick={() => { setShowForm(false); setFormError(''); }}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
-              >
-                {saving ? 'Creating...' : 'Create User'}
+              <button type="submit" disabled={saving}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50">
+                {saving ? 'Saving...' : 'Add User'}
               </button>
             </div>
           </form>
@@ -283,59 +246,57 @@ export default function UserManagement({ currentUserId, adminEmail }) {
             </thead>
             <tbody className="divide-y divide-gray-100">
               {users.map(user => (
-                <React.Fragment key={user.id}>
-                  <tr className={`hover:bg-gray-50 ${editingUser?.id === user.id ? 'bg-blue-50' : ''}`}>
+                <React.Fragment key={rowKey(user)}>
+                  <tr className={`hover:bg-gray-50 ${editKey(editingUser) === editKey(user) ? 'bg-blue-50' : ''}`}>
                     <td className="px-4 py-3 text-gray-900">{user.full_name || <span className="text-gray-400">—</span>}</td>
                     <td className="px-4 py-3 text-gray-700">{user.email}</td>
                     <td className="px-4 py-3">{roleBadge(user.role)}</td>
                     <td className="px-4 py-3">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-                        user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
-                      }`}>
-                        {user.is_active ? 'Active' : 'Inactive'}
-                      </span>
+                      {user.isPending ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                          Pending Sign-in
+                        </span>
+                      ) : (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                          user.is_active ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {user.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
-                        {editingUser?.id === user.id ? (
-                          <button
-                            onClick={cancelEditing}
-                            className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50"
-                          >
+                        {editKey(editingUser) === editKey(user) ? (
+                          <button onClick={cancelEditing}
+                            className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium border border-gray-200 text-gray-500 hover:bg-gray-50">
                             <X className="w-3 h-3" /> Cancel
                           </button>
                         ) : (
-                          <button
-                            onClick={() => { startEditing(user); setShowForm(false); }}
-                            className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium border border-blue-200 text-blue-600 hover:bg-blue-50"
-                          >
+                          <button onClick={() => { startEditing(user); setShowForm(false); }}
+                            className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium border border-blue-200 text-blue-600 hover:bg-blue-50">
                             <Pencil className="w-3 h-3" /> Edit
                           </button>
                         )}
-                        {user.id !== currentUserId && (
-                          <button
-                            onClick={() => handleToggleActive(user)}
-                            className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium border transition-colors ${
-                              user.is_active
-                                ? 'border-red-200 text-red-600 hover:bg-red-50'
-                                : 'border-green-200 text-green-600 hover:bg-green-50'
-                            }`}
-                          >
-                            {user.is_active ? (
-                              <><UserX className="w-3 h-3" /> Deactivate</>
-                            ) : (
-                              <><UserCheck className="w-3 h-3" /> Activate</>
-                            )}
+                        {user.isPending ? (
+                          <button onClick={() => handleDeletePending(user)}
+                            className="flex items-center gap-1 px-3 py-1 rounded text-xs font-medium border border-red-200 text-red-600 hover:bg-red-50">
+                            <Trash2 className="w-3 h-3" /> Remove
                           </button>
-                        )}
-                        {user.id === currentUserId && !editingUser && (
+                        ) : user.id !== currentUserId ? (
+                          <button onClick={() => handleToggleActive(user)}
+                            className={`flex items-center gap-1 px-3 py-1 rounded text-xs font-medium border transition-colors ${
+                              user.is_active ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-green-200 text-green-600 hover:bg-green-50'
+                            }`}>
+                            {user.is_active ? <><UserX className="w-3 h-3" /> Deactivate</> : <><UserCheck className="w-3 h-3" /> Activate</>}
+                          </button>
+                        ) : (
                           <span className="text-xs text-gray-400">You</span>
                         )}
                       </div>
                     </td>
                   </tr>
 
-                  {editingUser?.id === user.id && (
+                  {editKey(editingUser) === editKey(user) && (
                     <tr className="bg-blue-50 border-b border-blue-100">
                       <td colSpan={5} className="px-4 py-4">
                         <form onSubmit={handleSaveEdit} className="space-y-3">
@@ -343,59 +304,32 @@ export default function UserManagement({ currentUserId, adminEmail }) {
                           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-gray-700 mb-1">Full Name</label>
-                              <input
-                                type="text"
-                                name="full_name"
-                                value={editData.full_name}
-                                onChange={handleEditInputChange}
+                              <input type="text" name="full_name" value={editData.full_name} onChange={handleEditInputChange}
                                 placeholder="Full name"
-                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                              />
+                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-700 mb-1">Email</label>
-                              <input
-                                type="email"
-                                name="email"
-                                value={editData.email}
-                                onChange={handleEditInputChange}
-                                required
-                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                              />
+                              <input type="email" name="email" value={editData.email} onChange={handleEditInputChange} required
+                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm" />
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-gray-700 mb-1">Role</label>
-                              <select
-                                name="role"
-                                value={editData.role}
-                                onChange={handleEditInputChange}
-                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
-                              >
+                              <select name="role" value={editData.role} onChange={handleEditInputChange}
+                                className="w-full px-3 py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm">
                                 <option value="csm">CSM</option>
                                 <option value="admin">Admin</option>
                               </select>
                             </div>
                           </div>
-
                           {editError && (
-                            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">
-                              {editError}
-                            </div>
+                            <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-3 py-2 text-sm">{editError}</div>
                           )}
-
                           <div className="flex gap-2 justify-end">
-                            <button
-                              type="button"
-                              onClick={cancelEditing}
-                              className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="submit"
-                              disabled={editSaving}
-                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50"
-                            >
+                            <button type="button" onClick={cancelEditing}
+                              className="px-3 py-1.5 border border-gray-300 rounded-lg hover:bg-gray-50 text-sm">Cancel</button>
+                            <button type="submit" disabled={editSaving}
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium disabled:opacity-50">
                               {editSaving ? 'Saving...' : 'Save Changes'}
                             </button>
                           </div>
