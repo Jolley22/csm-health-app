@@ -777,17 +777,19 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
             <Settings className="w-4 h-4" />
             Customers
           </button>
-          <button
-            onClick={() => setActiveTab('dashboard')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === 'dashboard'
-                ? 'bg-blue-600 text-white'
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            }`}
-          >
-            <BarChart2 className="w-4 h-4" />
-            Dashboard
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('dashboard')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'dashboard'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <BarChart2 className="w-4 h-4" />
+              Dashboard
+            </button>
+          )}
           {isAdmin && (
             <button
               onClick={() => setActiveTab('users')}
@@ -958,7 +960,7 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
           </div>
         )}
 
-        {activeTab === 'dashboard' && (
+        {activeTab === 'dashboard' && isAdmin && (
           <Dashboard customers={customers} />
         )}
 
