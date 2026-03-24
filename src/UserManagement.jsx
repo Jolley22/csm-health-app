@@ -125,17 +125,17 @@ export default function UserManagement({ currentUserId, adminEmail }) {
 
       if (restoreError) throw new Error(`User created but failed to restore admin session: ${restoreError.message}. Please refresh and log in again.`);
 
-      // Step 3: Insert profile row (now running as the admin again)
+      // Step 3: Upsert profile row (handles case where a trigger auto-created a bare row)
       const { error: profileError } = await supabase
         .from('user_profiles')
-        .insert({
+        .upsert({
           id: newUserId,
           email: formData.email,
           role: formData.role,
           csm_name: formData.role === 'csm' ? formData.full_name : null,
           full_name: formData.full_name || null,
           is_active: true,
-        });
+        }, { onConflict: 'id' });
 
       if (profileError) throw profileError;
 
