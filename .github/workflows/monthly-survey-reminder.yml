@@ -30,3 +30,10 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
           APP_BASE_URL: ${{ secrets.APP_BASE_URL }}
         run: node scripts/send-survey-reminders.js
+
+      - name: Notify Slack on failure
+        if: failure()
+        run: |
+          curl -s -X POST "${{ secrets.SLACK_WEBHOOK_URL }}" \
+            -H 'Content-Type: application/json' \
+            -d '{"text": ":red_circle: *Monthly CSM Survey Reminder failed!*\nCheck the run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"}'
