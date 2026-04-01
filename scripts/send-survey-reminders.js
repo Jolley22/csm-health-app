@@ -15,9 +15,6 @@ const SLACK_WEBHOOK_URL = process.env.SLACK_WEBHOOK_URL;
 // Trim any whitespace from the URL to avoid encoding issues
 const APP_BASE_URL = (process.env.APP_BASE_URL || 'https://your-app-url.com').trim();
 
-// CSM list - should match your app's CSM list
-const CSMS = ['Brooke', 'Natalie', 'Ryan', 'Jasmin', 'Jake', 'Jessica', 'Cody', 'Emmalyn'];
-
 // Optional: Map CSM names to Slack user IDs for @mentions
 // You can find Slack user IDs by clicking on a user profile > More > Copy member ID
 const CSM_SLACK_IDS = {
@@ -67,11 +64,10 @@ async function main() {
     customersByCSM[customer.csm].push(customer);
   }
 
-  // Generate survey links for each CSM
+  // Generate survey links for each CSM found in the database
   const surveyLinks = [];
-  for (const csm of CSMS) {
-    const csmCustomers = customersByCSM[csm] || [];
-    if (csmCustomers.length === 0) continue;
+  for (const csm of Object.keys(customersByCSM).sort()) {
+    const csmCustomers = customersByCSM[csm];
 
     // Use query params instead of hash - Slack handles these better
     const surveyUrl = `${APP_BASE_URL}?survey&csm=${encodeURIComponent(csm)}`;
