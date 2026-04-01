@@ -54,6 +54,10 @@ async function main() {
 
   console.log(`Found ${customers.length} active customers`);
 
+  // Debug: show distinct CSM values found
+  const distinctCSMs = [...new Set(customers.map(c => c.csm))];
+  console.log('Distinct CSM values in DB:', JSON.stringify(distinctCSMs));
+
   // Group customers by CSM
   const customersByCSM = {};
   for (const customer of customers) {
