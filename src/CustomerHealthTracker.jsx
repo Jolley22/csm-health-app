@@ -4,7 +4,8 @@ import { Plus, TrendingUp, TrendingDown, AlertCircle, Search, X, Settings, Send,
 import CSVImport from './CSVImport';
 import Dashboard from './Dashboard';
 import UserManagement from './UserManagement';
-import { optionalMetrics, calculateWeightedRiskScore } from './scoring';
+import { applyMetricsConfig, calculateWeightedRiskScore } from './scoring';
+import MetricsConfig, { loadMetricsConfig } from './MetricsConfig';
 
 const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
   const isAdmin = userProfile?.role === 'admin';
@@ -27,6 +28,13 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
   const [showImport, setShowImport] = useState(false);
   const [activeTab, setActiveTab] = useState('customers');
 
+  // Metrics config — single source of truth for labels, definitions, weights, optional flags
+  const [metricsConfig, setMetricsConfig] = useState(() => {
+    const cfg = loadMetricsConfig();
+    applyMetricsConfig(cfg); // seed scoring module on first render
+    return cfg;
+  });
+
   // Survey mode state
   const [surveyMode, setSurveyMode] = useState(false);
   const [surveyCSM, setSurveyCSM] = useState('');
@@ -44,91 +52,11 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
     endUserNPS: '', supportSurvey: '', sentiment: '', leadership: '', applicantCES: '', notes: '', isActive: true
   });
 
-  const metricLabels = {
-    toolsDeployed: 'Tools Deployed',
-    interactionChampion: 'Engagement with Champion',
-    interactionDecisionMaker: 'Engagement with Decision Maker',
-    daysActive: 'Days Active (30 Days)',
-    roiEstablished: 'ROI',
-    championNPS: 'Champion/Decision Maker NPS',
-    endUserNPS: 'End User NPS',
-    supportSurvey: 'End User Support Survey Score',
-    sentiment: 'Sentiment',
-    leadership: 'Leadership Change',
-    applicantCES: 'Applicant CES Score'
-  };
-
-  const metricDescriptions = {
-    toolsDeployed: 'Based on the tools the customer has purchased, which ones have actually been deployed.',
-    interactionChampion: 'The level of engagement the champion is having with our team via email, text, meetings or any other communication.',
-    interactionDecisionMaker: 'The level of engagement the decision maker is having with our team via email, text, meetings or any other communication.',
-    daysActive: 'The amount of usage (measured by applicant count) in their account.',
-    roiEstablished: 'This dimension tracks the customer business objectives and places an ROI on JF\'s help in those initiatives. Can be Economic ROI (improving revenue/reducing costs), Ease of Doing Business (more efficient operations), or Innovation of Process (key part of major company initiative).',
-    championNPS: 'NPS survey sent to Champions automatically at the 6 month mark of the contract and manually sent or collected by JF team members where applicable.',
-    endUserNPS: 'NPS survey automatically sent to end users after completing implementation & 9 months.',
-    supportSurvey: 'After an end-user\'s support ticket is resolved, they receive a Customer Experience survey (CES), measuring the ease with which the customer was able to resolve a support issue, use our product or service, or find the information they needed. Customers rate on a 1-7 scale.',
-    sentiment: 'Objective measure of customer sentiment as assessed by the CSM and/or other JF Stakeholders who have interacted with the customer.',
-    leadership: 'Champion or decision maker change and their level of engagement/buy-in to the partnership.',
-    applicantCES: 'After an applicant\'s support ticket is resolved, they receive a Customer Experience survey (CES), measuring the ease with which they were able to resolve a support issue, use our product or service, or find the information they needed. Applicant rates their experience on a 1-7 rating scale.'
-  };
-
-  const metricGuidelines = {
-    toolsDeployed: {
-      high: '0 of the tools purchased are implemented',
-      medium: '1+ but not all purchased tools have been implemented',
-      low: 'All purchased tools have been implemented'
-    },
-    interactionChampion: {
-      high: 'No contact with champion in last 6 months',
-      medium: 'No contact with champion in the last 3 months',
-      low: 'Contact with champion within the last 3 months'
-    },
-    interactionDecisionMaker: {
-      high: 'No contact with decision maker in last 9 months',
-      medium: 'No contact with decision maker in the last 6 months',
-      low: 'Contact with decision maker in the last 6 months'
-    },
-    daysActive: {
-      high: '0-4 Active Days in the last 30 days',
-      medium: '5-14 Active Days in the last 30 days',
-      low: '14+ Active Days in the last 30 days'
-    },
-    roiEstablished: {
-      high: 'ROI hasn\'t been established',
-      medium: 'ROI has been established but hasn\'t been agreed to by budget holder or KDM',
-      low: 'ROI has been established and has been agreed to by KDM and budget holders'
-    },
-    championNPS: {
-      high: 'No score has been collected by a champion or score collected is ≤ 6',
-      medium: 'Score has been collected and the score is 7-8',
-      low: 'Score has been collected and the score is 9 or above'
-    },
-    endUserNPS: {
-      high: 'No score has been collected by an End User or score collected is ≤ 6',
-      medium: 'Score has been collected and the score is 7-8',
-      low: 'Score has been collected and the score is 9 or above'
-    },
-    supportSurvey: {
-      high: 'Avg CES score is ≤ 3',
-      medium: 'Avg CES score is 4 or 5',
-      low: 'Avg CES score is 6 or 7'
-    },
-    sentiment: {
-      high: 'Champion or decision-maker currently have negative sentiment about the partnership and product',
-      medium: 'Champion or decision-maker are positive but others have expressed negative sentiment',
-      low: 'All customers currently have positive sentiment towards the partnership and product'
-    },
-    leadership: {
-      high: 'Champion or decision maker change and not engaging or have concluded they\'re not bought in',
-      medium: 'Champion or decision maker change and engaging with us (although not yet bought in)',
-      low: 'No champion/KDM has changed OR 1 or both have changed but they are bought in to partnership and product'
-    },
-    applicantCES: {
-      high: 'Average score is < 5',
-      medium: 'Average score is > 5',
-      low: 'Average score is > 5.75'
-    }
-  };
+  // Derived lookups — all driven from metricsConfig state
+  const metricLabels = Object.fromEntries(metricsConfig.map(m => [m.key, m.label]));
+  const metricDescriptions = Object.fromEntries(metricsConfig.map(m => [m.key, m.description]));
+  const metricGuidelines = Object.fromEntries(metricsConfig.map(m => [m.key, { high: m.high, medium: m.medium, low: m.low }]));
+  const optionalMetrics = metricsConfig.filter(m => m.isOptional).map(m => m.key);
 
   // Load customers from Supabase
   const loadCustomers = async () => {
@@ -205,6 +133,18 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
       .order('full_name');
     if (data) setCsmUsers(data);
   };
+
+  useEffect(() => {
+    // Load metrics config from Supabase (overrides localStorage cache)
+    supabase.from('app_settings').select('value').eq('key', 'metrics_config').single()
+      .then(({ data }) => {
+        if (data?.value && Array.isArray(data.value) && data.value.length > 0) {
+          localStorage.setItem('csm-metrics-config', JSON.stringify(data.value));
+          setMetricsConfig(data.value);
+          applyMetricsConfig(data.value);
+        }
+      });
+  }, []);
 
   useEffect(() => {
     loadCustomers();
@@ -478,8 +418,8 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
                         className="px-2 py-2 text-center text-xs font-semibold text-gray-700 border-b border-r border-gray-200 min-w-[100px]"
                         title={metricDescriptions[metric]}
                       >
-                        <div className="truncate">
-                          {metricLabels[metric].split(' ').slice(0, 2).join(' ')}
+                        <div className="leading-tight">
+                          {metricLabels[metric]}
                         </div>
                         {optionalMetrics.includes(metric) && (
                           <span className="text-gray-400 font-normal text-[10px]">(opt)</span>
@@ -492,6 +432,19 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
                   </tr>
                 </thead>
                 <tbody>
+                  <tr className="bg-blue-50 border-b-2 border-blue-200">
+                      <td className="px-3 py-2 border-r border-blue-200 sticky left-0 bg-blue-50 z-10 text-[10px] font-semibold text-blue-700 uppercase tracking-wide">
+                        Definitions
+                      </td>
+                      {allMetrics.map(metric => (
+                        <td key={metric} className="px-2 py-2 border-r border-blue-200 text-[10px] leading-snug min-w-[100px]">
+                          <div className="font-semibold text-red-600">High: <span className="font-normal">{metricGuidelines[metric]?.high}</span></div>
+                          <div className="font-semibold text-yellow-600 mt-0.5">Mid: <span className="font-normal">{metricGuidelines[metric]?.medium}</span></div>
+                          <div className="font-semibold text-green-600 mt-0.5">Low: <span className="font-normal">{metricGuidelines[metric]?.low}</span></div>
+                        </td>
+                      ))}
+                      <td className="border-blue-200"></td>
+                    </tr>
                   {surveyCustomers.map((customer, idx) => {
                     const responses = surveyResponses[customer.id] || {};
                     const isComplete = requiredMetrics.every(m => responses[m] && responses[m] !== '');
@@ -815,6 +768,19 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
               Users
             </button>
           )}
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('metrics')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === 'metrics'
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              }`}
+            >
+              <TrendingUp className="w-4 h-4" />
+              Metrics
+            </button>
+          )}
         </div>
 
         {showSurveyModal && (
@@ -978,6 +944,16 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
 
         {activeTab === 'users' && isAdmin && (
           <UserManagement currentUserId={session.user.id} adminEmail={session.user.email} />
+        )}
+
+        {activeTab === 'metrics' && isAdmin && (
+          <MetricsConfig
+            config={metricsConfig}
+            onChange={(newConfig) => {
+              setMetricsConfig(newConfig);
+              applyMetricsConfig(newConfig);
+            }}
+          />
         )}
 
         {activeTab === 'customers' && <>
