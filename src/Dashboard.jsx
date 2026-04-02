@@ -161,12 +161,12 @@ const Dashboard = ({ customers, metricsConfig = [] }) => {
   const [filterSegment, setFilterSegment] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterCustomer, setFilterCustomer] = useState('all');
-  const [hiddenCustomers, setHiddenCustomers] = useState(new Set());
+  const [highlightedCustomer, setHighlightedCustomer] = useState(null);
 
-  // Reset dependent filters and hidden lines when upstream filters change
+  // Reset dependent filters and highlight when upstream filters change
   useEffect(() => {
     setFilterCustomer('all');
-    setHiddenCustomers(new Set());
+    setHighlightedCustomer(null);
   }, [filterCSM, filterSegment, filterStatus]);
 
   const csms = useMemo(() => {
@@ -399,13 +399,8 @@ const Dashboard = ({ customers, metricsConfig = [] }) => {
     return { segmentTrendData: data, segList: segListSorted };
   }, [customers, filterCSM, filterStatus, filterCustomer]);
 
-  const handleCustomerLegendClick = (data) => {
-    const id = data.dataKey;
-    setHiddenCustomers(prev => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
+  const handleCustomerHighlight = (id) => {
+    setHighlightedCustomer(prev => prev === id ? null : id);
   };
 
   const chartTitle = useMemo(() => {
@@ -614,7 +609,7 @@ const Dashboard = ({ customers, metricsConfig = [] }) => {
             By Customer
           </h2>
           <p className="text-xs text-gray-500 mb-6">
-            Weighted risk score per customer per month — dashed black lines are inactive customers. Click legend to show/hide.
+            Weighted risk score per customer per month — dashed black lines are inactive customers. Click a line or legend item to highlight.
           </p>
 
           {customerScoreData.length === 0 ? (
@@ -648,32 +643,42 @@ const Dashboard = ({ customers, metricsConfig = [] }) => {
                   verticalAlign="middle"
                   align="right"
                   wrapperStyle={{ paddingLeft: 16, maxHeight: 480, overflowY: 'auto', fontSize: 11 }}
-                  onClick={handleCustomerLegendClick}
-                  formatter={(value, entry) => (
-                    <span style={{
-                      color: hiddenCustomers.has(entry.dataKey) ? '#9ca3af' : '#374151',
-                      cursor: 'pointer',
-                      textDecoration: hiddenCustomers.has(entry.dataKey) ? 'line-through' : 'none',
-                    }}>{value}</span>
-                  )}
+                  onClick={data => handleCustomerHighlight(data.dataKey)}
+                  formatter={(value, entry) => {
+                    const isHighlighted = highlightedCustomer === entry.dataKey;
+                    const isFaded = highlightedCustomer && !isHighlighted;
+                    return (
+                      <span style={{
+                        color: isFaded ? '#d1d5db' : '#374151',
+                        cursor: 'pointer',
+                        fontWeight: isHighlighted ? '700' : '400',
+                      }}>{value}</span>
+                    );
+                  }}
                 />
 
-                {customerList.map(c => (
-                  <Line
-                    key={c.id}
-                    type="monotone"
-                    dataKey={c.id}
-                    name={c.name || c.id}
-                    stroke={customerColors[c.id]}
-                    strokeWidth={c.isActive !== false ? 1.5 : 1}
-                    strokeDasharray={c.isActive !== false ? undefined : '5 3'}
-                    dot={{ r: 2 }}
-                    activeDot={{ r: 4 }}
-                    hide={hiddenCustomers.has(c.id)}
-                    connectNulls={false}
-                    isAnimationActive={false}
-                  />
-                ))}
+                {customerList.map(c => {
+                  const isHighlighted = highlightedCustomer === c.id;
+                  const isFaded = highlightedCustomer && !isHighlighted;
+                  return (
+                    <Line
+                      key={c.id}
+                      type="monotone"
+                      dataKey={c.id}
+                      name={c.name || c.id}
+                      stroke={customerColors[c.id]}
+                      strokeWidth={isHighlighted ? 3 : (c.isActive !== false ? 1.5 : 1)}
+                      strokeOpacity={isFaded ? 0.1 : 1}
+                      strokeDasharray={c.isActive !== false ? undefined : '5 3'}
+                      dot={isFaded ? false : { r: isHighlighted ? 3 : 2 }}
+                      activeDot={{ r: 5 }}
+                      connectNulls={false}
+                      isAnimationActive={false}
+                      onClick={() => handleCustomerHighlight(c.id)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  );
+                })}
 
                 {/* Threshold reference lines */}
                 <ReferenceLine
