@@ -939,7 +939,7 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
         )}
 
         {activeTab === 'dashboard' && isAdmin && (
-          <Dashboard customers={customers} />
+          <Dashboard customers={customers} metricsConfig={metricsConfig} />
         )}
 
         {activeTab === 'users' && isAdmin && (
