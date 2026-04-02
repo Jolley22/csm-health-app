@@ -6,6 +6,7 @@ import Dashboard from './Dashboard';
 import UserManagement from './UserManagement';
 import { applyMetricsConfig, calculateWeightedRiskScore } from './scoring';
 import MetricsConfig, { loadMetricsConfig } from './MetricsConfig';
+import MissingEvals from './MissingEvals';
 
 const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
   const isAdmin = userProfile?.role === 'admin';
@@ -24,6 +25,7 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
   const [copiedLink, setCopiedLink] = useState(null);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [selectedCustomerHistory, setSelectedCustomerHistory] = useState(null);
+  const [editingHistoryCell, setEditingHistoryCell] = useState(null); // { historyId, metric }
   const [loading, setLoading] = useState(true);
   const [showImport, setShowImport] = useState(false);
   const [activeTab, setActiveTab] = useState('customers');
@@ -99,6 +101,7 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
           notes: customer.notes,
           isActive: customer.is_active !== false,
           history: historyData ? historyData.map(h => ({
+            id: h.id,
             date: new Date(h.snapshot_date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }),
             toolsDeployed: h.tools_deployed,
             interactionChampion: h.interaction_champion,
@@ -644,6 +647,41 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
     setShowHistoryModal(true);
   };
 
+  const metricToDbCol = {
+    toolsDeployed: 'tools_deployed',
+    interactionChampion: 'interaction_champion',
+    interactionDecisionMaker: 'interaction_decision_maker',
+    daysActive: 'days_active',
+    roiEstablished: 'roi_established',
+    championNPS: 'champion_nps',
+    endUserNPS: 'end_user_nps',
+    supportSurvey: 'support_survey',
+    sentiment: 'sentiment',
+    leadership: 'leadership',
+    applicantCES: 'applicant_ces',
+  };
+
+  const saveHistoryCell = async (historyId, metric, value) => {
+    const dbCol = metricToDbCol[metric];
+    if (!dbCol) return;
+    const { error } = await supabase
+      .from('customer_history')
+      .update({ [dbCol]: value || null })
+      .eq('id', historyId);
+    if (error) {
+      alert('Failed to save. Please try again.');
+      return;
+    }
+    // Update local state so UI reflects the change immediately
+    setSelectedCustomerHistory(prev => ({
+      ...prev,
+      history: prev.history.map(h =>
+        h.id === historyId ? { ...h, [metric]: value } : h
+      ),
+    }));
+    setEditingHistoryCell(null);
+  };
+
   const getMetricColor = (value) => {
     if (value === 'High') return 'bg-red-100 text-red-800';
     if (value === 'Medium') return 'bg-yellow-100 text-yellow-800';
@@ -781,6 +819,17 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
               Metrics
             </button>
           )}
+          <button
+            onClick={() => setActiveTab('evals')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+              activeTab === 'evals'
+                ? 'bg-blue-600 text-white'
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            <AlertCircle className="w-4 h-4" />
+            Evals
+          </button>
         </div>
 
         {showSurveyModal && (
@@ -862,81 +911,105 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
           </div>
         )}
 
-        {showHistoryModal && selectedCustomerHistory && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-            <div className="bg-white rounded-lg p-6 max-w-7xl w-full my-8 max-h-[90vh] overflow-y-auto">
-              <div className="flex justify-between items-center mb-6">
-                <div>
-                  <h2 className="text-2xl font-bold text-gray-900">{selectedCustomerHistory.name} - Health Score History</h2>
-                  <p className="text-gray-600">Segment {selectedCustomerHistory.segment} • CSM: {selectedCustomerHistory.csm}</p>
+        {showHistoryModal && selectedCustomerHistory && (() => {
+          const reversedHistory = [...(selectedCustomerHistory.history || [])].reverse();
+          return (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+              <div className="bg-white rounded-lg p-6 max-w-7xl w-full my-8 max-h-[90vh] overflow-y-auto">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">{selectedCustomerHistory.name} — Health Score History</h2>
+                    <p className="text-gray-600">Segment {selectedCustomerHistory.segment} • CSM: {selectedCustomerHistory.csm}</p>
+                  </div>
+                  <button onClick={() => { setShowHistoryModal(false); setEditingHistoryCell(null); }} className="text-gray-400 hover:text-gray-600">
+                    <X className="w-6 h-6" />
+                  </button>
                 </div>
-                <button onClick={() => setShowHistoryModal(false)} className="text-gray-400 hover:text-gray-600">
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
+                <p className="text-xs text-gray-400 mb-4">Click any metric cell to edit it inline.</p>
 
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="bg-gray-100">
-                      <th className="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-gray-700 sticky left-0 bg-gray-100 z-10">Metric</th>
-                      {selectedCustomerHistory.history && [...selectedCustomerHistory.history].reverse().map((entry, idx) => (
-                        <th key={idx} className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-700">
-                          {entry.date}
-                        </th>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="bg-gray-100">
+                        <th className="border border-gray-300 px-4 py-2 text-left text-sm font-semibold text-gray-700 sticky left-0 bg-gray-100 z-10">Metric</th>
+                        {reversedHistory.map((entry, idx) => (
+                          <th key={idx} className="border border-gray-300 px-4 py-2 text-center text-sm font-semibold text-gray-700 min-w-[110px]">
+                            {entry.date}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.keys(metricLabels).map(metric => (
+                        <tr key={metric} className="hover:bg-gray-50">
+                          <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
+                            {metricLabels[metric]}
+                          </td>
+                          {reversedHistory.map((entry, idx) => {
+                            const value = entry[metric] || '';
+                            const isEditing = editingHistoryCell?.historyId === entry.id && editingHistoryCell?.metric === metric;
+                            const colorClass = getMetricColor(value || '-');
+                            return (
+                              <td key={idx} className="border border-gray-300 px-2 py-2 text-center">
+                                {isEditing ? (
+                                  <select
+                                    autoFocus
+                                    value={value}
+                                    onChange={e => saveHistoryCell(entry.id, metric, e.target.value)}
+                                    onBlur={() => setEditingHistoryCell(null)}
+                                    className="text-xs border border-blue-400 rounded px-1 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                  >
+                                    <option value="">—</option>
+                                    <option value="High">High</option>
+                                    <option value="Medium">Medium</option>
+                                    <option value="Low">Low</option>
+                                  </select>
+                                ) : (
+                                  <span
+                                    className={`inline-block px-3 py-1 rounded-full text-xs font-semibold cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all ${colorClass}`}
+                                    onClick={() => setEditingHistoryCell({ historyId: entry.id, metric })}
+                                    title="Click to edit"
+                                  >
+                                    {value || '—'}
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.keys(metricLabels).map(metric => (
-                      <tr key={metric} className="hover:bg-gray-50">
-                        <td className="border border-gray-300 px-4 py-3 text-sm font-medium text-gray-900 sticky left-0 bg-white z-10">
-                          {metricLabels[metric]}
+                      <tr className="bg-gray-50 font-semibold">
+                        <td className="border border-gray-300 px-4 py-3 text-sm text-gray-900 sticky left-0 bg-gray-50 z-10">
+                          Health Score
                         </td>
-                        {selectedCustomerHistory.history && [...selectedCustomerHistory.history].reverse().map((entry, idx) => {
-                          const value = entry[metric] || '-';
-                          const colorClass = getMetricColor(value);
+                        {reversedHistory.map((entry, idx) => {
+                          const tempCustomer = { ...selectedCustomerHistory, ...entry };
+                          const { score } = calculateWeightedRiskScore(tempCustomer);
                           return (
                             <td key={idx} className="border border-gray-300 px-4 py-3 text-center">
-                              <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold ${colorClass}`}>
-                                {value}
+                              <span className="text-lg font-bold text-blue-600">
+                                {score !== null ? score : '—'}
                               </span>
                             </td>
                           );
                         })}
                       </tr>
-                    ))}
-                    <tr className="bg-gray-50 font-semibold">
-                      <td className="border border-gray-300 px-4 py-3 text-sm text-gray-900 sticky left-0 bg-gray-50 z-10">
-                        Health Score
-                      </td>
-                      {selectedCustomerHistory.history && [...selectedCustomerHistory.history].reverse().map((entry, idx) => {
-                        const tempCustomer = { ...selectedCustomerHistory, ...entry };
-                        const { score } = calculateWeightedRiskScore(tempCustomer);
-                        return (
-                          <td key={idx} className="border border-gray-300 px-4 py-3 text-center">
-                            <span className="text-lg font-bold text-blue-600">
-                              {score !== null ? score : '-'}
-                            </span>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                    </tbody>
+                  </table>
+                </div>
 
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setShowHistoryModal(false)}
-                  className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
-                >
-                  Close
-                </button>
+                <div className="mt-6 flex justify-end">
+                  <button
+                    onClick={() => { setShowHistoryModal(false); setEditingHistoryCell(null); }}
+                    className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg"
+                  >
+                    Close
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {activeTab === 'dashboard' && isAdmin && (
           <Dashboard customers={customers} metricsConfig={metricsConfig} />
@@ -954,6 +1027,10 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
               applyMetricsConfig(newConfig);
             }}
           />
+        )}
+
+        {activeTab === 'evals' && (
+          <MissingEvals customers={customers} isAdmin={isAdmin} />
         )}
 
         {activeTab === 'customers' && <>
