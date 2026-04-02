@@ -102,6 +102,7 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
           isActive: customer.is_active !== false,
           history: historyData ? historyData.map(h => ({
             id: h.id,
+            snapshotDate: h.snapshot_date,
             date: new Date(h.snapshot_date).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }),
             toolsDeployed: h.tools_deployed,
             interactionChampion: h.interaction_champion,
@@ -661,22 +662,32 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
     applicantCES: 'applicant_ces',
   };
 
-  const saveHistoryCell = async (historyId, metric, value) => {
+  const saveHistoryCell = async (entry, metric, value) => {
     const dbCol = metricToDbCol[metric];
     if (!dbCol) return;
-    const { error } = await supabase
-      .from('customer_history')
-      .update({ [dbCol]: value || null })
-      .eq('id', historyId);
+
+    // Build the update query — prefer id if available, fall back to customer_id + snapshot_date
+    let query = supabase.from('customer_history').update({ [dbCol]: value || null });
+    if (entry.id) {
+      query = query.eq('id', entry.id);
+    } else {
+      query = query
+        .eq('customer_id', selectedCustomerHistory.id)
+        .eq('snapshot_date', entry.snapshotDate);
+    }
+
+    const { error } = await query;
     if (error) {
+      console.error('saveHistoryCell error:', error);
       alert('Failed to save. Please try again.');
       return;
     }
-    // Update local state so UI reflects the change immediately
+
+    // Update local state immediately so UI reflects the change
     setSelectedCustomerHistory(prev => ({
       ...prev,
       history: prev.history.map(h =>
-        h.id === historyId ? { ...h, [metric]: value } : h
+        h.snapshotDate === entry.snapshotDate ? { ...h, [metric]: value } : h
       ),
     }));
     setEditingHistoryCell(null);
@@ -947,7 +958,7 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
                           </td>
                           {reversedHistory.map((entry, idx) => {
                             const value = entry[metric] || '';
-                            const isEditing = editingHistoryCell?.historyId === entry.id && editingHistoryCell?.metric === metric;
+                            const isEditing = editingHistoryCell?.snapshotDate === entry.snapshotDate && editingHistoryCell?.metric === metric;
                             const colorClass = getMetricColor(value || '-');
                             return (
                               <td key={idx} className="border border-gray-300 px-2 py-2 text-center">
@@ -955,7 +966,7 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
                                   <select
                                     autoFocus
                                     value={value}
-                                    onChange={e => saveHistoryCell(entry.id, metric, e.target.value)}
+                                    onChange={e => saveHistoryCell(entry, metric, e.target.value)}
                                     onBlur={() => setEditingHistoryCell(null)}
                                     className="text-xs border border-blue-400 rounded px-1 py-1 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                                   >
@@ -967,7 +978,7 @@ const CustomerHealthTracker = ({ session, userProfile, onSignOut }) => {
                                 ) : (
                                   <span
                                     className={`inline-block px-3 py-1 rounded-full text-xs font-semibold cursor-pointer hover:ring-2 hover:ring-blue-300 transition-all ${colorClass}`}
-                                    onClick={() => setEditingHistoryCell({ historyId: entry.id, metric })}
+                                    onClick={() => setEditingHistoryCell({ snapshotDate: entry.snapshotDate, metric })}
                                     title="Click to edit"
                                   >
                                     {value || '—'}
