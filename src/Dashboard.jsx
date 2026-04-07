@@ -162,11 +162,17 @@ const Dashboard = ({ customers, metricsConfig = [] }) => {
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterCustomer, setFilterCustomer] = useState('all');
   const [highlightedCustomer, setHighlightedCustomer] = useState(null);
+  const [highlightedMetric, setHighlightedMetric] = useState(null);
+  const [highlightedCSM, setHighlightedCSM] = useState(null);
+  const [highlightedSegment, setHighlightedSegment] = useState(null);
 
-  // Reset dependent filters and highlight when upstream filters change
+  // Reset dependent filters and all highlights when upstream filters change
   useEffect(() => {
     setFilterCustomer('all');
     setHighlightedCustomer(null);
+    setHighlightedMetric(null);
+    setHighlightedCSM(null);
+    setHighlightedSegment(null);
   }, [filterCSM, filterSegment, filterStatus]);
 
   const csms = useMemo(() => {
@@ -403,6 +409,18 @@ const Dashboard = ({ customers, metricsConfig = [] }) => {
     setHighlightedCustomer(prev => prev === id ? null : id);
   };
 
+  const handleMetricHighlight = (key) => {
+    setHighlightedMetric(prev => prev === key ? null : key);
+  };
+
+  const handleCSMHighlight = (csm) => {
+    setHighlightedCSM(prev => prev === csm ? null : csm);
+  };
+
+  const handleSegmentHighlight = (seg) => {
+    setHighlightedSegment(prev => prev === seg ? null : seg);
+  };
+
   const chartTitle = useMemo(() => {
     const parts = [];
     if (filterCSM !== 'all') parts.push(filterCSM);
@@ -569,33 +587,62 @@ const Dashboard = ({ customers, metricsConfig = [] }) => {
                 <Legend
                   verticalAlign="top"
                   wrapperStyle={{ paddingBottom: 12 }}
-                  formatter={(value) => value === '__avg' ? 'AVERAGE' : (metricLabels[value] || value)}
+                  onClick={data => handleMetricHighlight(data.dataKey)}
+                  formatter={(value, entry) => {
+                    const key = entry.dataKey;
+                    const isHighlighted = highlightedMetric === key;
+                    const isFaded = highlightedMetric && !isHighlighted;
+                    const label = key === '__avg' ? 'AVERAGE' : (metricLabels[key] || key);
+                    return (
+                      <span style={{
+                        color: isFaded ? '#d1d5db' : '#374151',
+                        cursor: 'pointer',
+                        fontWeight: isHighlighted ? '700' : '400',
+                      }}>{label}</span>
+                    );
+                  }}
                 />
 
-                {metricKeys.map((mKey, idx) => (
-                  <Line
-                    key={mKey}
-                    type="monotone"
-                    dataKey={mKey}
-                    name={metricLabels[mKey] || mKey}
-                    stroke={METRIC_COLORS[idx % METRIC_COLORS.length]}
-                    strokeWidth={1.5}
-                    dot={false}
-                    isAnimationActive={false}
-                  />
-                ))}
+                {metricKeys.map((mKey, idx) => {
+                  const isHighlighted = highlightedMetric === mKey;
+                  const isFaded = highlightedMetric && !isHighlighted;
+                  return (
+                    <Line
+                      key={mKey}
+                      type="monotone"
+                      dataKey={mKey}
+                      name={metricLabels[mKey] || mKey}
+                      stroke={METRIC_COLORS[idx % METRIC_COLORS.length]}
+                      strokeWidth={isHighlighted ? 3 : 1.5}
+                      strokeOpacity={isFaded ? 0.1 : 1}
+                      dot={false}
+                      isAnimationActive={false}
+                      onClick={() => handleMetricHighlight(mKey)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  );
+                })}
 
                 {/* AVERAGE line — dashed blue */}
-                <Line
-                  type="monotone"
-                  dataKey="__avg"
-                  name="AVERAGE"
-                  stroke={AVERAGE_COLOR}
-                  strokeWidth={2}
-                  strokeDasharray="6 3"
-                  dot={{ r: 3, fill: AVERAGE_COLOR }}
-                  isAnimationActive={false}
-                />
+                {(() => {
+                  const isHighlighted = highlightedMetric === '__avg';
+                  const isFaded = highlightedMetric && !isHighlighted;
+                  return (
+                    <Line
+                      type="monotone"
+                      dataKey="__avg"
+                      name="AVERAGE"
+                      stroke={AVERAGE_COLOR}
+                      strokeWidth={isHighlighted ? 3 : 2}
+                      strokeOpacity={isFaded ? 0.1 : 1}
+                      strokeDasharray="6 3"
+                      dot={{ r: 3, fill: AVERAGE_COLOR }}
+                      isAnimationActive={false}
+                      onClick={() => handleMetricHighlight('__avg')}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  );
+                })()}
               </LineChart>
             </ResponsiveContainer>
           )}
@@ -735,21 +782,40 @@ const Dashboard = ({ customers, metricsConfig = [] }) => {
                   verticalAlign="middle"
                   align="right"
                   wrapperStyle={{ paddingLeft: 16, fontSize: 11 }}
+                  onClick={data => handleCSMHighlight(data.dataKey)}
+                  formatter={(value, entry) => {
+                    const isHighlighted = highlightedCSM === entry.dataKey;
+                    const isFaded = highlightedCSM && !isHighlighted;
+                    return (
+                      <span style={{
+                        color: isFaded ? '#d1d5db' : '#374151',
+                        cursor: 'pointer',
+                        fontWeight: isHighlighted ? '700' : '400',
+                      }}>{value}</span>
+                    );
+                  }}
                 />
-                {csmList.map((csm, idx) => (
-                  <Line
-                    key={csm}
-                    type="monotone"
-                    dataKey={csm}
-                    name={csm}
-                    stroke={METRIC_COLORS[idx % METRIC_COLORS.length]}
-                    strokeWidth={2}
-                    dot={{ r: 2 }}
-                    activeDot={{ r: 4 }}
-                    connectNulls={false}
-                    isAnimationActive={false}
-                  />
-                ))}
+                {csmList.map((csm, idx) => {
+                  const isHighlighted = highlightedCSM === csm;
+                  const isFaded = highlightedCSM && !isHighlighted;
+                  return (
+                    <Line
+                      key={csm}
+                      type="monotone"
+                      dataKey={csm}
+                      name={csm}
+                      stroke={METRIC_COLORS[idx % METRIC_COLORS.length]}
+                      strokeWidth={isHighlighted ? 3 : 2}
+                      strokeOpacity={isFaded ? 0.1 : 1}
+                      dot={isFaded ? false : { r: isHighlighted ? 3 : 2 }}
+                      activeDot={{ r: 5 }}
+                      connectNulls={false}
+                      isAnimationActive={false}
+                      onClick={() => handleCSMHighlight(csm)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                  );
+                })}
                 <ReferenceLine y={60} stroke="#22c55e" strokeDasharray="4 2"
                   label={{ value: 'Low', position: 'insideTopRight', fontSize: 10, fill: '#22c55e' }} />
                 <ReferenceLine y={130} stroke="#ef4444" strokeDasharray="4 2"
@@ -795,10 +861,23 @@ const Dashboard = ({ customers, metricsConfig = [] }) => {
                 <Legend
                   verticalAlign="top"
                   wrapperStyle={{ paddingBottom: 12 }}
-                  formatter={value => `Segment ${value}`}
+                  onClick={data => handleSegmentHighlight(data.dataKey)}
+                  formatter={(value, entry) => {
+                    const isHighlighted = highlightedSegment === entry.dataKey;
+                    const isFaded = highlightedSegment && !isHighlighted;
+                    return (
+                      <span style={{
+                        color: isFaded ? '#d1d5db' : '#374151',
+                        cursor: 'pointer',
+                        fontWeight: isHighlighted ? '700' : '400',
+                      }}>{`Segment ${value}`}</span>
+                    );
+                  }}
                 />
                 {segList.map(seg => {
                   const color = SEGMENT_COLORS[seg] || METRIC_COLORS[parseInt(seg, 10) % METRIC_COLORS.length];
+                  const isHighlighted = highlightedSegment === seg;
+                  const isFaded = highlightedSegment && !isHighlighted;
                   return (
                     <Line
                       key={seg}
@@ -806,17 +885,22 @@ const Dashboard = ({ customers, metricsConfig = [] }) => {
                       dataKey={seg}
                       name={seg}
                       stroke={color}
-                      strokeWidth={2}
-                      dot={{ r: 3, fill: color }}
+                      strokeWidth={isHighlighted ? 3 : 2}
+                      strokeOpacity={isFaded ? 0.1 : 1}
+                      dot={isFaded ? false : { r: isHighlighted ? 4 : 3, fill: color }}
                       activeDot={{ r: 5 }}
                       connectNulls={false}
                       isAnimationActive={false}
+                      onClick={() => handleSegmentHighlight(seg)}
+                      style={{ cursor: 'pointer' }}
                     >
-                      <LabelList
-                        position="top"
-                        style={{ fontSize: 9, fill: color, fontWeight: 500 }}
-                        formatter={v => (v != null ? v.toFixed(1) : '')}
-                      />
+                      {!isFaded && (
+                        <LabelList
+                          position="top"
+                          style={{ fontSize: 9, fill: color, fontWeight: isHighlighted ? 700 : 500 }}
+                          formatter={v => (v != null ? v.toFixed(1) : '')}
+                        />
+                      )}
                     </Line>
                   );
                 })}
