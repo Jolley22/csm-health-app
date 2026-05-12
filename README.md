@@ -41,6 +41,23 @@ Project URL: `https://bkpvwqdtmyfamhryytql.supabase.co`
 | `customer_history` | Historical health score records per customer |
 | `user_profiles` | User roles and profile data (`admin` or `csm`) |
 
+### Security Hardening
+
+Run [`supabase/security-fixes.sql`](./supabase/security-fixes.sql) in the **Supabase SQL Editor** (Project → SQL Editor → New query) to apply all security patches. The file is idempotent — safe to re-run.
+
+The script covers three Supabase Security Advisor findings:
+
+| # | Finding | Fix applied |
+|---|---------|-------------|
+| 1 | RLS disabled on `pending_users` | Enables RLS + admin-only SELECT/INSERT/UPDATE/DELETE policies |
+| 2 | Anon/public can execute SECURITY DEFINER functions | Revokes PUBLIC execute; re-grants only to `authenticated` role |
+| 3 | Mutable `search_path` on SECURITY DEFINER functions | Sets `search_path = ''` on all three functions |
+
+**After running the SQL**, also enable password protection in the Supabase dashboard:
+Authentication → Settings → **Enable leaked password protection** → Save.
+
+The script ends with four verification queries — all should return the expected values before you consider the fixes complete.
+
 ### Keeping the Free Tier Active
 
 Supabase pauses free projects after **1 week of inactivity**. A daily cron job via [cron-job.org](https://cron-job.org) prevents this.
